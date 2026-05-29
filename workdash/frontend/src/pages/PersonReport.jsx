@@ -4,22 +4,28 @@ import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
 
-const MONTH_NAMES = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const PROJ_COLORS = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#7C3AED','#EC4899','#0891B2'];
 
-function Avatar({ name }) {
-  const initials = name ? name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase() : '??';
+function Avatar({ name, size = 64 }) {
+  const initials = name
+    ? name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
+    : '?';
   return (
-    <div className="w-16 h-16 rounded-full bg-[#1D9E75] text-white text-xl font-bold flex items-center justify-center shrink-0">
+    <div
+      className="rounded-full flex items-center justify-center font-bold text-white shrink-0"
+      style={{ width: size, height: size, background: 'var(--primary)', fontSize: size * 0.35 }}
+    >
       {initials}
     </div>
   );
 }
 
-function KpiBox({ label, value, color = '#1a1c20' }) {
+function KpiBox({ label, value, color }) {
   return (
-    <div className="bg-[var(--color-bg)] rounded-xl p-4 text-center">
-      <div className="text-2xl font-bold" style={{ color }}>{value ?? '—'}</div>
-      <div className="text-xs text-[var(--color-muted)] mt-1">{label}</div>
+    <div className="rounded-xl p-4 text-center" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+      <p className="text-[22px] font-bold leading-none mb-1" style={{ color }}>{value ?? '—'}</p>
+      <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{label}</p>
     </div>
   );
 }
@@ -28,10 +34,10 @@ export default function PersonReport() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
   const [searchParams] = useSearchParams();
+  const now = new Date();
 
   const [employees, setEmployees] = useState([]);
   const [selectedId, setSelectedId] = useState(searchParams.get('id') || '');
-  const now = new Date();
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [year, setYear] = useState(now.getFullYear());
   const [report, setReport] = useState(null);
@@ -40,10 +46,9 @@ export default function PersonReport() {
   useEffect(() => {
     api.get('/employees')
       .then(res => {
-        setEmployees(res.data.employees || []);
-        if (!selectedId && res.data.employees?.length) {
-          setSelectedId(String(res.data.employees[0].id));
-        }
+        const emps = res.data.employees || [];
+        setEmployees(emps);
+        if (!selectedId && emps.length) setSelectedId(String(emps[0].id));
       })
       .catch(() => {});
   }, []);
@@ -60,198 +65,199 @@ export default function PersonReport() {
   useEffect(() => { if (selectedId) loadReport(); }, [selectedId, refreshKey]);
 
   const stats = report?.stats || {};
-  const emp = report?.employee || {};
-  const officeStart = '09:00';
+  const emp   = report?.employee || {};
 
   const dailyData = (report?.dailyHours || []).map(d => ({
     date: new Date(d.date).getDate(),
     hours: d.hours,
-    is_late: d.is_late,
+    late: d.is_late,
   }));
 
   const projectData = (report?.projectHours || []).map(p => ({
-    name: p.name.length > 20 ? p.name.slice(0, 18) + '…' : p.name,
+    name: p.name.length > 22 ? p.name.slice(0, 20) + '…' : p.name,
     hours: parseFloat(p.hours) || 0,
   }));
 
-  const PROJECT_COLORS = ['#1D9E75', '#378ADD', '#EF9F27', '#E24B4A', '#8b5cf6', '#ec4899'];
+  const maxProjHours = Math.max(...projectData.map(p => p.hours), 1);
 
   return (
-    <div className="fade-in space-y-5">
-      {/* Filter Bar */}
-      <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-4 flex flex-wrap gap-3 items-end">
+    <div className="space-y-5 fade-up">
+      {/* Filter */}
+      <div className="card px-5 py-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">Employee</label>
-          <select
-            value={selectedId}
-            onChange={e => setSelectedId(e.target.value)}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[#1D9E75] min-w-48"
-          >
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Employee</label>
+          <select value={selectedId} onChange={e => setSelectedId(e.target.value)} className="form-input form-select" style={{ minWidth: 200, paddingRight: 28 }}>
             <option value="">Select employee…</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">Month</label>
-          <select
-            value={month}
-            onChange={e => setMonth(Number(e.target.value))}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
-          >
-            {MONTH_NAMES.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Month</label>
+          <select value={month} onChange={e => setMonth(Number(e.target.value))} className="form-input form-select" style={{ paddingRight: 28 }}>
+            {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">Year</label>
-          <select
-            value={year}
-            onChange={e => setYear(Number(e.target.value))}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none"
-          >
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Year</label>
+          <select value={year} onChange={e => setYear(Number(e.target.value))} className="form-input form-select" style={{ paddingRight: 28 }}>
             {[2023, 2024, 2025, 2026].map(y => <option key={y}>{y}</option>)}
           </select>
         </div>
-        <button
-          onClick={loadReport}
-          className="bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors"
-        >
-          Load Report
-        </button>
+        <button onClick={loadReport} className="btn btn-primary">Load Report</button>
       </div>
 
       {!selectedId ? (
-        <div className="text-center py-20 text-[var(--color-muted)]">
-          <div className="text-4xl mb-3">👤</div>
-          <p>Select an employee to view their monthly report.</p>
+        <div className="card flex flex-col items-center justify-center py-24" style={{ color: 'var(--text-muted)' }}>
+          <div className="text-5xl mb-4 opacity-30">👤</div>
+          <p className="text-sm font-medium">Select an employee to view their monthly report</p>
         </div>
       ) : loading ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <div className="lg:col-span-3 space-y-4">
             <div className="skeleton h-24 rounded-xl" />
-            <div className="skeleton h-64 rounded-xl" />
-            <div className="skeleton h-48 rounded-xl" />
+            <div className="skeleton h-52 rounded-xl" />
+            <div className="skeleton h-44 rounded-xl" />
           </div>
-          <div className="lg:col-span-2 skeleton h-96 rounded-xl" />
+          <div className="lg:col-span-2 skeleton h-[440px] rounded-xl" />
         </div>
       ) : report ? (
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Left: Charts */}
           <div className="lg:col-span-3 space-y-4">
-            {/* KPI boxes */}
+            {/* KPI row */}
             <div className="grid grid-cols-3 gap-3">
-              <KpiBox label="Days Present" value={stats.presentDays} color="#1D9E75" />
-              <KpiBox label="Late Days" value={stats.lateDays} color="#EF9F27" />
-              <KpiBox label="Total Hours" value={`${stats.totalHours}h`} color="#378ADD" />
+              <KpiBox label="Days Present" value={stats.presentDays} color="var(--primary)" />
+              <KpiBox label="Late Days"    value={stats.lateDays}    color="var(--warning)" />
+              <KpiBox label="Total Hours"  value={`${stats.totalHours}h`} color="var(--info)" />
             </div>
 
-            {/* Daily hours */}
-            <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-5">
-              <h3 className="font-semibold text-[var(--color-text)] mb-4">Daily Hours — {MONTH_NAMES[month - 1]} {year}</h3>
-              {dailyData.length === 0 ? (
-                <div className="text-center py-8 text-[var(--color-muted)] text-sm">No hours logged this month</div>
-              ) : (
-                <ResponsiveContainer width="100%" height={160}>
-                  <BarChart data={dailyData}>
-                    <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                    <YAxis tick={{ fontSize: 11 }} />
-                    <Tooltip formatter={v => [`${v}h`, 'Hours']} labelFormatter={l => `Day ${l}`} />
-                    <Bar dataKey="hours" radius={[4, 4, 0, 0]}>
-                      {dailyData.map((d, i) => (
-                        <Cell key={i} fill={d.hours < 4 || d.is_late ? '#E24B4A' : '#1D9E75'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              )}
+            {/* Daily hours chart */}
+            <div className="card overflow-hidden">
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="section-title">Daily Hours — {MONTHS[month - 1]} {year}</p>
+                <p className="section-sub">Green = full day · Red = short or late</p>
+              </div>
+              <div className="p-5">
+                {dailyData.length === 0 ? (
+                  <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                    <p className="text-sm">No hours logged this month</p>
+                  </div>
+                ) : (
+                  <ResponsiveContainer width="100%" height={160}>
+                    <BarChart data={dailyData} margin={{ top: 4, right: 4, left: -20, bottom: 0 }}>
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                      <Tooltip formatter={v => [`${v}h`, 'Hours']} labelFormatter={l => `Day ${l}`} />
+                      <Bar dataKey="hours" radius={[3, 3, 0, 0]} maxBarSize={20}>
+                        {dailyData.map((d, i) => (
+                          <Cell key={i} fill={d.hours < 4 || d.late ? 'var(--danger)' : 'var(--primary)'} />
+                        ))}
+                      </Bar>
+                    </BarChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
             </div>
 
             {/* Hours by project */}
-            <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-5">
-              <h3 className="font-semibold text-[var(--color-text)] mb-4">Hours by Project</h3>
-              {projectData.length === 0 ? (
-                <div className="text-center py-6 text-[var(--color-muted)] text-sm">No project time logged</div>
-              ) : (
-                <div className="space-y-3">
-                  {projectData.map((p, i) => {
-                    const max = Math.max(...projectData.map(x => x.hours)) || 1;
-                    return (
+            <div className="card overflow-hidden">
+              <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+                <p className="section-title">Hours by Project</p>
+              </div>
+              <div className="p-5">
+                {projectData.length === 0 ? (
+                  <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                    <p className="text-sm">No project hours logged</p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {projectData.map((p, i) => (
                       <div key={i}>
-                        <div className="flex justify-between text-sm mb-1">
-                          <span className="text-[var(--color-text)]">{p.name}</span>
-                          <span className="font-semibold" style={{ color: PROJECT_COLORS[i % PROJECT_COLORS.length] }}>{p.hours.toFixed(1)}h</span>
+                        <div className="flex justify-between items-center mb-1">
+                          <span className="text-xs font-medium" style={{ color: 'var(--text)' }}>{p.name}</span>
+                          <span className="text-xs font-bold" style={{ color: PROJ_COLORS[i % PROJ_COLORS.length] }}>
+                            {p.hours.toFixed(1)}h
+                          </span>
                         </div>
-                        <div className="h-2 bg-[var(--color-border)] rounded-full overflow-hidden">
+                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
                           <div
                             className="h-full rounded-full transition-all"
-                            style={{ width: `${(p.hours / max) * 100}%`, backgroundColor: PROJECT_COLORS[i % PROJECT_COLORS.length] }}
+                            style={{ width: `${(p.hours / maxProjHours) * 100}%`, background: PROJ_COLORS[i % PROJ_COLORS.length] }}
                           />
                         </div>
                       </div>
-                    );
-                  })}
-                </div>
-              )}
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
-          {/* Right: Profile card */}
+          {/* Right: Profile */}
           <div className="lg:col-span-2">
-            <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-6 h-full">
-              {/* Avatar + info */}
-              <div className="flex items-start gap-4 mb-6">
-                <Avatar name={emp.name} />
-                <div>
-                  <div className="font-bold text-[var(--color-text)] text-lg">{emp.name}</div>
-                  <div className="text-sm text-[var(--color-muted)]">{emp.department}</div>
-                  <div className="text-xs text-[var(--color-muted)] mt-0.5">{emp.designation}</div>
-                </div>
-              </div>
-
-              {/* Avg times */}
-              <div className="grid grid-cols-2 gap-3 mb-5">
-                <div className="bg-[var(--color-bg)] rounded-lg p-3">
-                  <div className="text-xs text-[var(--color-muted)] mb-1">Avg Clock-In</div>
-                  <div className={`font-bold text-base ${stats.avgClockIn > officeStart ? 'text-red-500' : 'text-[var(--color-text)]'}`}>
-                    {stats.avgClockIn || '—'}
+            <div className="card h-full overflow-hidden">
+              {/* Header band */}
+              <div className="px-6 py-6" style={{ background: 'var(--primary)', background: 'linear-gradient(135deg, #1D9E75, #0F6E56)' }}>
+                <div className="flex items-center gap-4">
+                  <Avatar name={emp.name} size={56} />
+                  <div>
+                    <p className="text-white font-bold text-[16px] leading-tight">{emp.name}</p>
+                    <p className="text-white/70 text-xs mt-0.5">{emp.department}</p>
+                    <p className="text-white/50 text-[11px]">{emp.designation}</p>
                   </div>
                 </div>
-                <div className="bg-[var(--color-bg)] rounded-lg p-3">
-                  <div className="text-xs text-[var(--color-muted)] mb-1">Avg Clock-Out</div>
-                  <div className="font-bold text-base text-[var(--color-text)]">{stats.avgClockOut || '—'}</div>
-                </div>
               </div>
 
-              {/* Attendance % */}
-              <div className="mb-5">
-                <div className="flex justify-between text-sm mb-1">
-                  <span className="text-[var(--color-muted)]">Attendance Rate</span>
-                  <span className="font-bold text-[#1D9E75]">{stats.attendanceRate}%</span>
+              <div className="p-6 space-y-5">
+                {/* Avg times */}
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="rounded-lg p-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Avg Clock-In</p>
+                    <p className="text-[16px] font-bold" style={{ color: stats.avgClockIn > '09:00' ? 'var(--danger)' : 'var(--text)' }}>
+                      {stats.avgClockIn || '—'}
+                    </p>
+                  </div>
+                  <div className="rounded-lg p-3" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: 'var(--text-muted)' }}>Avg Clock-Out</p>
+                    <p className="text-[16px] font-bold" style={{ color: 'var(--text)' }}>{stats.avgClockOut || '—'}</p>
+                  </div>
                 </div>
-                <div className="h-2.5 bg-[var(--color-border)] rounded-full overflow-hidden">
-                  <div
-                    className="h-full rounded-full"
-                    style={{ width: `${stats.attendanceRate}%`, backgroundColor: stats.attendanceRate >= 80 ? '#1D9E75' : '#EF9F27' }}
-                  />
-                </div>
-              </div>
 
-              {/* 2x2 summary */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-green-50 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-green-600">{stats.presentDays}</div>
-                  <div className="text-xs text-green-700 mt-0.5">Present</div>
+                {/* Attendance rate */}
+                <div>
+                  <div className="flex justify-between items-center mb-2">
+                    <span className="text-xs font-semibold" style={{ color: 'var(--text-secondary)' }}>Attendance Rate</span>
+                    <span className="text-sm font-bold" style={{ color: stats.attendanceRate >= 80 ? 'var(--primary)' : 'var(--warning)' }}>
+                      {stats.attendanceRate}%
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                    <div
+                      className="h-full rounded-full transition-all"
+                      style={{
+                        width: `${stats.attendanceRate}%`,
+                        background: stats.attendanceRate >= 80 ? 'var(--primary)' : 'var(--warning)',
+                      }}
+                    />
+                  </div>
+                  <p className="text-[11px] mt-1" style={{ color: 'var(--text-muted)' }}>
+                    {stats.presentDays} of {stats.workingDays} working days
+                  </p>
                 </div>
-                <div className="bg-amber-50 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-amber-600">{stats.lateDays}</div>
-                  <div className="text-xs text-amber-700 mt-0.5">Late</div>
-                </div>
-                <div className="bg-red-50 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-red-500">{stats.absentDays}</div>
-                  <div className="text-xs text-red-600 mt-0.5">Absent</div>
-                </div>
-                <div className="bg-blue-50 rounded-lg p-3 text-center">
-                  <div className="text-xl font-bold text-blue-500">{stats.leaveDays}</div>
-                  <div className="text-xs text-blue-600 mt-0.5">Leave</div>
+
+                {/* 2x2 grid */}
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: 'Present', value: stats.presentDays, bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+                    { label: 'Late',    value: stats.lateDays,    bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
+                    { label: 'Absent',  value: stats.absentDays,  bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
+                    { label: 'Leave',   value: stats.leaveDays,   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+                  ].map(item => (
+                    <div key={item.label} className="rounded-lg p-3 text-center" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
+                      <p className="text-[22px] font-bold" style={{ color: item.color }}>{item.value ?? '—'}</p>
+                      <p className="text-[11px] font-semibold mt-0.5" style={{ color: item.color }}>{item.label}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
             </div>

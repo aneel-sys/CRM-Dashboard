@@ -1,62 +1,121 @@
 import { NavLink } from 'react-router-dom';
-import { MdDashboard, MdAccessTime, MdPerson, MdFolderOpen, MdSchedule, MdPeople } from 'react-icons/md';
+import {
+  MdDashboard, MdAccessTime, MdPerson,
+  MdFolderOpen, MdSchedule, MdPeople,
+} from 'react-icons/md';
 
 const NAV = [
-  { section: 'MAIN', items: [
-    { to: '/', icon: MdDashboard, label: 'Overview' },
-    { to: '/attendance', icon: MdAccessTime, label: 'Attendance' },
-  ]},
-  { section: 'REPORTS', items: [
-    { to: '/person', icon: MdPerson, label: 'Per Person' },
-    { to: '/projects', icon: MdFolderOpen, label: 'Projects' },
-    { to: '/timings', icon: MdSchedule, label: 'Timings' },
-  ]},
-  { section: 'TEAM', items: [
-    { to: '/team', icon: MdPeople, label: 'All Employees' },
-  ]},
+  {
+    section: 'MAIN',
+    items: [
+      { to: '/', icon: MdDashboard, label: 'Overview' },
+      { to: '/attendance', icon: MdAccessTime, label: 'Attendance' },
+    ],
+  },
+  {
+    section: 'REPORTS',
+    items: [
+      { to: '/person', icon: MdPerson, label: 'Per Person' },
+      { to: '/projects', icon: MdFolderOpen, label: 'Projects' },
+      { to: '/timings', icon: MdSchedule, label: 'Timings' },
+    ],
+  },
+  {
+    section: 'TEAM',
+    items: [
+      { to: '/team', icon: MdPeople, label: 'All Employees' },
+    ],
+  },
 ];
+
+function LogoMark() {
+  return (
+    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+      <rect width="28" height="28" rx="7" fill="#1D9E75" />
+      <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
+      <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
+      <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.7" />
+    </svg>
+  );
+}
 
 export default function Sidebar({ collapsed }) {
   return (
     <aside
-      style={{ backgroundColor: '#0f1923', width: collapsed ? 64 : 224 }}
-      className="fixed top-0 left-0 h-screen flex flex-col transition-all duration-200 z-40"
+      className="fixed top-0 left-0 h-screen flex flex-col z-40 transition-all duration-200"
+      style={{
+        width: collapsed ? 64 : 230,
+        background: 'var(--sidebar)',
+        borderRight: '1px solid rgba(255,255,255,0.06)',
+      }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 px-4 py-5 border-b border-white/10">
-        <span className="text-2xl">📊</span>
+      <div
+        className="flex items-center gap-3 px-4 py-5"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
+      >
+        <div className="shrink-0">
+          <LogoMark />
+        </div>
         {!collapsed && (
           <div>
-            <div className="text-white font-bold text-base leading-tight">WorkDash</div>
-            <div className="text-white/40 text-xs">Worksuite Analytics v1.0</div>
+            <div className="text-white font-bold text-[15px] leading-tight tracking-tight">
+              WorkDash
+            </div>
+            <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
+              Worksuite Analytics v1.0
+            </div>
           </div>
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto py-4 px-2">
+      {/* Nav */}
+      <nav className="flex-1 overflow-y-auto py-3 px-2.5">
         {NAV.map(group => (
-          <div key={group.section} className="mb-4">
+          <div key={group.section} className="mb-1">
             {!collapsed && (
-              <div className="text-white/30 text-xs font-semibold tracking-widest px-3 mb-1">
+              <p
+                className="text-[10px] font-bold tracking-widest px-2 py-2"
+                style={{ color: 'rgba(255,255,255,0.25)' }}
+              >
                 {group.section}
-              </div>
+              </p>
             )}
             {group.items.map(({ to, icon: Icon, label }) => (
               <NavLink
                 key={to}
                 to={to}
                 end={to === '/'}
+                title={collapsed ? label : undefined}
                 className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2.5 rounded-lg mb-0.5 text-sm transition-colors
-                   ${isActive
-                     ? 'border-l-[3px] border-[#1D9E75] bg-[#1D9E75]/10 text-[#1D9E75] font-medium pl-[9px]'
-                     : 'text-white/60 hover:text-white hover:bg-white/5 border-l-[3px] border-transparent pl-[9px]'
-                   }`
+                  `flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-150 ${
+                    collapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'
+                  } ${
+                    isActive
+                      ? 'text-[#1D9E75] font-semibold'
+                      : 'font-medium'
+                  }`
                 }
+                style={({ isActive }) => ({
+                  background: isActive ? 'var(--sidebar-active)' : 'transparent',
+                  color: isActive ? '#1D9E75' : 'rgba(255,255,255,0.55)',
+                  borderLeft: !collapsed
+                    ? isActive
+                      ? '3px solid #1D9E75'
+                      : '3px solid transparent'
+                    : 'none',
+                })}
+                onMouseEnter={e => {
+                  if (!e.currentTarget.classList.contains('active'))
+                    e.currentTarget.style.background = 'var(--sidebar-hover)';
+                }}
+                onMouseLeave={e => {
+                  if (!e.currentTarget.style.color.includes('rgb(29'))
+                    e.currentTarget.style.background = 'transparent';
+                }}
               >
                 <Icon size={18} className="shrink-0" />
-                {!collapsed && <span>{label}</span>}
+                {!collapsed && <span className="text-[13px]">{label}</span>}
               </NavLink>
             ))}
           </div>
@@ -64,17 +123,22 @@ export default function Sidebar({ collapsed }) {
       </nav>
 
       {/* Footer */}
-      <div className="px-4 py-3 border-t border-white/10">
-        <div className="text-white/30 text-xs">
-          {!collapsed ? (
-            <>
-              <div>Office: 09:00 AM</div>
-              <div className="mt-0.5 text-white/20">Admin Panel</div>
-            </>
-          ) : (
-            <div className="text-center">🕘</div>
-          )}
-        </div>
+      <div
+        className="px-4 py-3"
+        style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
+      >
+        {collapsed ? (
+          <div className="text-center text-lg">🕘</div>
+        ) : (
+          <div>
+            <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
+              Office hours: 09:00 – 18:00
+            </p>
+            <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.18)' }}>
+              Admin Panel · Read-only DB
+            </p>
+          </div>
+        )}
       </div>
     </aside>
   );

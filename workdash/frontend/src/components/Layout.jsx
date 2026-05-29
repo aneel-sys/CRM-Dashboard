@@ -4,12 +4,12 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
 const PAGE_TITLES = {
-  '/': 'Overview Dashboard',
+  '/':           'Overview Dashboard',
   '/attendance': 'Attendance & Late Tracking',
-  '/person': 'Per Person Monthly Progress',
-  '/projects': 'Projects Overview',
-  '/timings': 'Timings / Timesheets',
-  '/team': 'All Employees',
+  '/person':     'Per Person Monthly Progress',
+  '/projects':   'Projects Overview',
+  '/timings':    'Timings / Timesheets',
+  '/team':       'All Employees',
 };
 
 const REFRESH_INTERVAL = 60 * 1000;
@@ -30,14 +30,16 @@ export default function Layout() {
     return () => clearInterval(t);
   }, [doRefresh]);
 
+  const sidebarWidth = collapsed ? 64 : 230;
   const title = PAGE_TITLES[location.pathname] || 'WorkDash';
 
   return (
-    <div className="flex min-h-screen bg-[var(--color-bg)]">
+    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
       <Sidebar collapsed={collapsed} />
+
       <div
-        className="flex-1 flex flex-col transition-all duration-200"
-        style={{ marginLeft: collapsed ? 64 : 224 }}
+        className="flex-1 flex flex-col min-w-0 transition-all duration-200"
+        style={{ marginLeft: sidebarWidth }}
       >
         <Topbar
           title={title}
@@ -46,8 +48,11 @@ export default function Layout() {
           lastRefresh={lastRefresh}
           onRefresh={doRefresh}
         />
-        <main className="flex-1 pt-14 p-6 overflow-auto">
-          <Outlet context={{ refreshKey }} />
+
+        <main className="flex-1 overflow-auto" style={{ paddingTop: 56 }}>
+          <div className="p-6 max-w-[1600px]">
+            <Outlet context={{ refreshKey }} />
+          </div>
         </main>
       </div>
     </div>

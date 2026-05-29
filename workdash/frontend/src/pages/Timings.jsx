@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { MdFilterList, MdDownload } from 'react-icons/md';
+import { MdFilterList, MdDownload, MdAvTimer, MdPeople, MdToday, MdList } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
@@ -9,7 +9,6 @@ import api from '../api/axios';
 export default function Timings() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
-
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const today = now.toISOString().slice(0, 10);
@@ -25,19 +24,16 @@ export default function Timings() {
 
   useEffect(() => {
     api.get('/timings/filters')
-      .then(res => {
-        setEmployees(res.data.employees || []);
-        setProjects(res.data.projects || []);
-      })
+      .then(res => { setEmployees(res.data.employees || []); setProjects(res.data.projects || []); })
       .catch(() => {});
   }, []);
 
   const fetchData = () => {
     setLoading(true);
-    const params = new URLSearchParams({ from, to });
-    if (userId) params.set('user_id', userId);
-    if (projectId) params.set('project_id', projectId);
-    api.get(`/timings?${params}`)
+    const p = new URLSearchParams({ from, to });
+    if (userId) p.set('user_id', userId);
+    if (projectId) p.set('project_id', projectId);
+    api.get(`/timings?${p}`)
       .then(res => setData(res.data))
       .catch(err => toast(err.response?.data?.message || 'Failed to load timings'))
       .finally(() => setLoading(false));
@@ -46,10 +42,10 @@ export default function Timings() {
   useEffect(() => { fetchData(); }, [refreshKey]);
 
   const handleExport = () => {
-    const params = new URLSearchParams({ from, to });
-    if (userId) params.set('user_id', userId);
-    if (projectId) params.set('project_id', projectId);
-    window.open(`/api/timings/export?${params}`, '_blank');
+    const p = new URLSearchParams({ from, to });
+    if (userId) p.set('user_id', userId);
+    if (projectId) p.set('project_id', projectId);
+    window.open(`/api/timings/export?${p}`, '_blank');
   };
 
   const summary = data?.summary || {};
@@ -57,74 +53,92 @@ export default function Timings() {
   const COLUMNS = [
     {
       key: 'employee_name', label: 'Employee',
-      render: v => <span className="font-medium text-[var(--color-text)]">{v}</span>
+      render: v => <span className="font-semibold" style={{ color: 'var(--text)' }}>{v}</span>,
     },
-    { key: 'log_date', label: 'Date' },
-    { key: 'project_name', label: 'Project', render: v => v || '—' },
-    { key: 'task_name', label: 'Task', render: v => v || '—' },
     {
-      key: 'total_hours', label: 'Hours',
-      render: v => <span className="text-[#1D9E75] font-semibold">{parseFloat(v || 0).toFixed(2)}h</span>
+      key: 'log_date', label: 'Date',
+      render: v => <span style={{ color: 'var(--text-secondary)' }}>{v}</span>,
     },
-    { key: 'notes', label: 'Notes', render: v => <span className="text-[var(--color-muted)] text-xs">{v || '—'}</span> },
+    {
+      key: 'project_name', label: 'Project',
+      render: v => v
+        ? <span className="pill pill-blue" style={{ fontWeight: 500 }}>{v}</span>
+        : <span style={{ color: 'var(--text-muted)' }}>—</span>,
+    },
+    {
+      key: 'task_name', label: 'Task',
+      render: v => <span className="text-xs" style={{ color: 'var(--text-secondary)' }}>{v || '—'}</span>,
+    },
+    {
+      key: 'total_hours', label: 'Hours', align: 'right',
+      render: v => (
+        <span className="font-bold" style={{ color: 'var(--primary)' }}>
+          {parseFloat(v || 0).toFixed(2)}h
+        </span>
+      ),
+    },
+    {
+      key: 'notes', label: 'Notes',
+      render: v => <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{v || '—'}</span>,
+    },
   ];
 
   return (
-    <div className="fade-in space-y-5">
-      {/* Filter Bar */}
-      <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-4 flex flex-wrap gap-3 items-end">
+    <div className="space-y-5 fade-up">
+      {/* Filter */}
+      <div className="card px-5 py-4 flex flex-wrap gap-3 items-end">
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">From</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
-          />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>From</label>
+          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="form-input" />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">To</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-[#1D9E75]"
-          />
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>To</label>
+          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="form-input" />
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">Employee</label>
-          <select value={userId} onChange={e => setUserId(e.target.value)}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none"
-          >
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Employee</label>
+          <select value={userId} onChange={e => setUserId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
             <option value="">All Employees</option>
             {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
           </select>
         </div>
         <div>
-          <label className="block text-xs text-[var(--color-muted)] mb-1">Project</label>
-          <select value={projectId} onChange={e => setProjectId(e.target.value)}
-            className="border border-[var(--color-border)] rounded-lg px-3 py-2 text-sm bg-[var(--color-card)] text-[var(--color-text)] focus:outline-none"
-          >
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Project</label>
+          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
             <option value="">All Projects</option>
             {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <button onClick={fetchData}
-          className="flex items-center gap-1.5 bg-[#1D9E75] hover:bg-[#0F6E56] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors">
-          <MdFilterList size={16} /> Apply
+        <button onClick={fetchData} className="btn btn-primary">
+          <MdFilterList size={15} /> Apply
         </button>
-        <button onClick={handleExport}
-          className="flex items-center gap-1.5 border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)] text-sm font-medium px-4 py-2 rounded-lg transition-colors ml-auto">
-          <MdDownload size={16} /> Export CSV
+        <button onClick={handleExport} className="btn btn-secondary ml-auto">
+          <MdDownload size={15} /> Export CSV
         </button>
       </div>
 
       {/* Stats */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Hours" value={`${summary.totalHours || '0.00'}h`} color="#378ADD" loading={loading} />
-        <StatCard title="Avg / Employee" value={`${summary.avgPerEmployee || '0.00'}h`} color="#1D9E75" loading={loading} />
-        <StatCard title="Avg / Day" value={`${summary.avgPerDay || '0.00'}h`} color="#EF9F27" loading={loading} />
-        <StatCard title="Log Entries" value={summary.totalEntries || 0} color="#6b7280" loading={loading} />
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
+        <StatCard title="Total Hours"    value={`${summary.totalHours || '0.00'}h`}      icon={MdAvTimer}  color="#378ADD" loading={loading} />
+        <StatCard title="Avg/Employee"   value={`${summary.avgPerEmployee || '0.00'}h`}  icon={MdPeople}   color="#1D9E75" loading={loading} />
+        <StatCard title="Avg/Day"        value={`${summary.avgPerDay || '0.00'}h`}        icon={MdToday}    color="#EF9F27" loading={loading} />
+        <StatCard title="Log Entries"    value={summary.totalEntries || 0}                icon={MdList}     color="#7C3AED" loading={loading} />
       </div>
 
       {/* Table */}
-      <div className="bg-[var(--color-card)] rounded-xl border border-[var(--color-border)] p-5">
-        <h3 className="font-semibold text-[var(--color-text)] mb-4">Time Log Entries</h3>
-        <DataTable columns={COLUMNS} data={data?.logs || []} loading={loading} emptyMessage="No time logs found for this period" />
+      <div className="card overflow-hidden">
+        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div>
+            <p className="section-title">Time Log Entries</p>
+            <p className="section-sub">{from} → {to} · {data?.logs?.length || 0} entries</p>
+          </div>
+        </div>
+        <DataTable
+          columns={COLUMNS}
+          data={data?.logs || []}
+          loading={loading}
+          emptyMessage="No time logs found for this period"
+        />
       </div>
     </div>
   );
