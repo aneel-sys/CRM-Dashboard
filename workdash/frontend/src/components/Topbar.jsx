@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdNotifications } from 'react-icons/md';
+import { MdMenu, MdDarkMode, MdLightMode, MdRefresh } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import NotificationPanel from './NotificationPanel';
 
 const iconBtn = {
   display: 'inline-flex',
@@ -105,24 +106,8 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
           {dark ? <MdLightMode size={22} /> : <MdDarkMode size={22} />}
         </button>
 
-        {/* Notifications */}
-        <button
-          style={{ ...iconBtn, position: 'relative', color: 'var(--text-secondary)' }}
-          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-        >
-          <MdNotifications size={22} />
-          <span style={{
-            position: 'absolute',
-            top: 6,
-            right: 6,
-            width: 7,
-            height: 7,
-            borderRadius: '50%',
-            background: 'var(--danger)',
-            border: '2px solid var(--card)',
-          }} />
-        </button>
+        {/* Notifications — live panel */}
+        <NotificationPanel />
 
         {/* Divider */}
         <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />

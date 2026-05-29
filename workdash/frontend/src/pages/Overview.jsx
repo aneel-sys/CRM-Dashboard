@@ -135,9 +135,9 @@ export default function Overview() {
                 <thead>
                   <tr>
                     <th>Employee</th>
+                    <th>Role</th>
                     <th>Clock In</th>
                     <th>Delay</th>
-                    <th>Status</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -149,14 +149,14 @@ export default function Overview() {
                           <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{row.department}</p>
                         </div>
                       </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                        {row.designation || '—'}
+                      </td>
                       <td className="font-semibold" style={{ color: 'var(--danger)' }}>
                         {fmt(row.clock_in_time)}
                       </td>
                       <td>
                         <span className="pill pill-red">+{row.delay_minutes}m</span>
-                      </td>
-                      <td>
-                        <span className="pill pill-red">Late</span>
                       </td>
                     </tr>
                   ))}

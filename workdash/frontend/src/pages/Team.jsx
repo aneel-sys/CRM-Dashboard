@@ -88,6 +88,14 @@ export default function Team() {
       render: v => <span style={{ color: 'var(--text-secondary)' }}>{v || '—'}</span>,
     },
     {
+      key: 'today_status', label: 'Today',
+      render: (v) => {
+        if (!v) return <span className="pill pill-gray">Absent</span>;
+        if (v === 'Late') return <span className="pill pill-amber">Late</span>;
+        return <span className="pill pill-green">Present</span>;
+      },
+    },
+    {
       key: 'month_hours', label: 'Month Hours',
       render: v => <span className="font-bold" style={{ color: 'var(--info)' }}>{parseFloat(v || 0).toFixed(1)}h</span>,
     },

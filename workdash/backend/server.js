@@ -10,6 +10,7 @@ const employeeRoutes = require('./routes/employees');
 const projectRoutes = require('./routes/projects');
 const timingsRoutes = require('./routes/timings');
 const teamRoutes = require('./routes/team');
+const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.APP_PORT || 5000;
@@ -43,6 +44,7 @@ app.use('/api/employees', employeeRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/timings', timingsRoutes);
 app.use('/api/team', teamRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
