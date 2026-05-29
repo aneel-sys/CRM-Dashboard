@@ -5,15 +5,8 @@ const { requireAuth } = require('../middleware/auth');
 
 const officeStart = () => process.env.OFFICE_START_TIME || '09:00';
 
-function buildAttendanceQuery(date, departmentId, status) {
-  const params = [date, officeStart()];
-  let deptFilter = '';
-  if (departmentId) {
-    deptFilter = 'AND u.department_id = ?';
-    params.push(departmentId);
-  }
-  params.push(date, officeStart());
-
+function buildAttendanceQuery(date, departmentId) {
+  const deptFilter = departmentId ? 'AND u.department_id = ?' : '';
   const sql = `
     SELECT
       u.id,
@@ -43,7 +36,7 @@ function buildAttendanceQuery(date, departmentId, status) {
     ORDER BY u.name ASC
   `;
 
-  // params order: date, officeStart (for delay), officeStart (for status CASE), date, [deptId]
+  // params: date+officeStart for TIMESTAMPDIFF, officeStart for CASE WHEN, date for JOIN, optional deptId
   const finalParams = [date, officeStart(), officeStart(), date];
   if (departmentId) finalParams.push(departmentId);
   return { sql, finalParams };

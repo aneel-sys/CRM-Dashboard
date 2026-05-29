@@ -14,11 +14,13 @@ const notificationRoutes = require('./routes/notifications');
 
 const app = express();
 const PORT = process.env.APP_PORT || 5000;
+const isProd = process.env.NODE_ENV === 'production';
+
+// Trust nginx reverse proxy so secure cookies and IP detection work correctly
+if (isProd) app.set('trust proxy', 1);
 
 app.use(cors({
-  origin: process.env.NODE_ENV === 'production'
-    ? false
-    : 'http://localhost:3000',
+  origin: isProd ? false : 'http://localhost:3000',
   credentials: true,
 }));
 
@@ -30,8 +32,9 @@ app.use(session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: false,
+    secure: isProd,     // true in prod (HTTPS via nginx), false in dev
     httpOnly: true,
+    sameSite: isProd ? 'strict' : 'lax',
     maxAge: 24 * 60 * 60 * 1000, // 24 hours
   },
 }));

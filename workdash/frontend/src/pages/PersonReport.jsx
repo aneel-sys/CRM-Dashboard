@@ -200,7 +200,7 @@ export default function PersonReport() {
           <div className="lg:col-span-2">
             <div className="card h-full overflow-hidden">
               {/* Header band */}
-              <div className="px-6 py-6" style={{ background: 'var(--primary)', background: 'linear-gradient(135deg, #1D9E75, #0F6E56)' }}>
+              <div className="px-6 py-6" style={{ background: 'linear-gradient(135deg, #1D9E75, #0F6E56)' }}>
                 <div className="flex items-center gap-4">
                   <Avatar name={emp.name} size={56} />
                   <div>
