@@ -9,7 +9,9 @@ const api = axios.create({
 api.interceptors.response.use(
   res => res,
   err => {
-    if (err.response?.status === 401) {
+    // Only redirect on 401 if we're not already on the login page,
+    // otherwise the /auth/me check on mount causes an infinite reload loop.
+    if (err.response?.status === 401 && !window.location.pathname.startsWith('/login')) {
       window.location.href = '/login';
     }
     return Promise.reject(err);
