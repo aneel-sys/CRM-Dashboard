@@ -274,7 +274,9 @@ export default function Projects() {
         </div>
       ) : projects.length === 0 ? (
         <div className="card flex flex-col items-center justify-center py-24" style={{ color: 'var(--text-muted)' }}>
-          <MdFolderOpen size={48} className="opacity-20 mb-3" />
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 12, opacity: 0.25 }}>
+            <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V7z" />
+          </svg>
           <p className="text-sm font-medium">No projects found</p>
         </div>
       ) : (

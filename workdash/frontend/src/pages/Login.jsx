@@ -29,7 +29,14 @@ export default function Login() {
       <div className="w-full max-w-sm">
         {/* Logo */}
         <div className="text-center mb-8">
-          <div className="text-5xl mb-3">📊</div>
+          <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
+            <svg width="52" height="52" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="8" fill="#1D9E75" />
+              <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
+              <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
+              <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.75" />
+            </svg>
+          </div>
           <h1 className="text-white text-2xl font-bold">WorkDash</h1>
           <p className="text-white/50 text-sm mt-1">Worksuite Analytics Dashboard</p>
         </div>

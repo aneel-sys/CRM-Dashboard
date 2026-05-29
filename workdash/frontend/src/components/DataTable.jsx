@@ -29,7 +29,11 @@ export default function DataTable({ columns, data, loading, emptyMessage = 'No d
   if (!data || data.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--text-muted)' }}>
-        <div className="text-4xl mb-3 opacity-40">📭</div>
+        <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 10, opacity: 0.35 }}>
+          <rect x="3" y="3" width="18" height="18" rx="2" />
+          <line x1="3" y1="9" x2="21" y2="9" />
+          <line x1="9" y1="21" x2="9" y2="9" />
+        </svg>
         <p className="text-sm font-medium">{emptyMessage}</p>
       </div>
     );

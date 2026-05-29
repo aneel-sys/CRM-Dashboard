@@ -124,8 +124,11 @@ export default function Overview() {
               </div>
             ) : !data?.lateArrivals?.length ? (
               <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <div className="text-3xl mb-2">✅</div>
-                <p className="text-sm font-medium">No late arrivals today</p>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
+                  <circle cx="12" cy="12" r="10" />
+                  <polyline points="9 12 11 14 15 10" />
+                </svg>
+                <p className="text-sm font-medium">All employees arrived on time</p>
               </div>
             ) : (
               <table className="data-table">

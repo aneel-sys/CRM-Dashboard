@@ -15,10 +15,15 @@ function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[var(--color-bg)]">
-        <div className="text-center">
-          <div className="text-4xl mb-3">📊</div>
-          <div className="text-[var(--color-muted)] text-sm">Loading WorkDash…</div>
+      <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--bg)' }}>
+        <div style={{ textAlign: 'center' }}>
+          <svg width="40" height="40" viewBox="0 0 28 28" fill="none" style={{ margin: '0 auto 12px' }}>
+            <rect width="28" height="28" rx="8" fill="#1D9E75" />
+            <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
+            <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
+            <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.75" />
+          </svg>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading WorkDash…</p>
         </div>
       </div>
     );

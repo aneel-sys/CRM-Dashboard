@@ -130,7 +130,11 @@ export default function Sidebar({ collapsed, width }) {
         style={{ borderTop: '1px solid rgba(255,255,255,0.07)' }}
       >
         {collapsed ? (
-          <div className="text-center text-lg">🕘</div>
+          <div style={{ display: 'flex', justifyContent: 'center', opacity: 0.3 }}>
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          </div>
         ) : (
           <div>
             <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
