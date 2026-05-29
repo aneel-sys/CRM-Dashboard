@@ -42,7 +42,7 @@
   --sidebar-hover:  rgba(255,255,255,0.05);
 }
 
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+*, *::before, *::after { box-sizing: border-box; }
 
 html { font-size: 14px; }
 
@@ -52,6 +52,13 @@ body {
   color: var(--text);
   line-height: 1.5;
   -webkit-font-smoothing: antialiased;
+  margin: 0;
+}
+
+#root {
+  display: block;
+  width: 100%;
+  min-height: 100vh;
 }
 
 /* ── Scrollbar ─────────────────────────────── */

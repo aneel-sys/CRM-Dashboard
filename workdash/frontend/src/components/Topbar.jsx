@@ -3,7 +3,22 @@ import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdNotifications } from 'rea
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 
-export default function Topbar({ title, sidebarCollapsed, onToggleSidebar, lastRefresh, onRefresh }) {
+const iconBtn = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  width: 40,
+  height: 40,
+  borderRadius: 10,
+  border: 'none',
+  background: 'transparent',
+  cursor: 'pointer',
+  flexShrink: 0,
+  transition: 'background 0.15s',
+  padding: 0,
+};
+
+export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefresh, onRefresh }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const [elapsed, setElapsed] = useState(0);
@@ -15,127 +30,180 @@ export default function Topbar({ title, sidebarCollapsed, onToggleSidebar, lastR
     return () => clearInterval(t);
   }, [lastRefresh]);
 
-  const initials = user?.username?.[0]?.toUpperCase() || 'A';
-
   return (
-    <header
-      className="fixed top-0 right-0 z-30 flex items-center justify-between px-5 transition-all duration-200"
-      style={{
-        left: sidebarCollapsed ? 64 : 230,
-        height: 56,
-        background: 'var(--card)',
-        borderBottom: '1px solid var(--border)',
-        boxShadow: '0 1px 0 var(--border)',
-      }}
-    >
-      {/* Left */}
-      <div className="flex items-center gap-3">
+    <header style={{
+      position: 'fixed',
+      top: 0,
+      left: sidebarWidth,
+      right: 0,
+      height: 60,
+      zIndex: 30,
+      background: 'var(--card)',
+      borderBottom: '1px solid var(--border)',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      padding: '0 20px',
+      transition: 'left 0.2s ease',
+    }}>
+
+      {/* Left — hamburger + page title */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
         <button
           onClick={onToggleSidebar}
-          className="btn btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center"
-          style={{ height: 32, width: 32 }}
+          style={{ ...iconBtn, color: 'var(--text-secondary)' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          <MdMenu size={20} />
+          <MdMenu size={24} />
         </button>
-        <div>
-          <h1 className="font-bold text-[15px] leading-tight" style={{ color: 'var(--text)' }}>
-            {title}
-          </h1>
-        </div>
+        <h1 style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
+          {title}
+        </h1>
       </div>
 
-      {/* Right */}
-      <div className="flex items-center gap-2">
+      {/* Right — controls */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
         {/* Refresh pill */}
         <button
           onClick={onRefresh}
-          className="flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-medium transition-colors"
           style={{
-            background: 'var(--bg)',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 6,
+            height: 32,
+            padding: '0 12px',
+            borderRadius: 999,
             border: '1px solid var(--border)',
-            color: 'var(--text-secondary)',
+            background: 'var(--bg)',
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
           }}
         >
-          <MdRefresh size={13} style={{ color: 'var(--primary)' }} />
-          <span style={{ color: 'var(--text-muted)' }}>
-            Auto-refresh: 60s
-          </span>
-          <span
-            className="font-semibold"
-            style={{ color: elapsed > 50 ? 'var(--warning)' : 'var(--primary)' }}
-          >
+          <MdRefresh size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
+          <span>Auto-refresh: 60s</span>
+          <span style={{ color: elapsed > 50 ? 'var(--warning)' : 'var(--primary)', fontWeight: 700 }}>
             · {elapsed}s ago
           </span>
         </button>
 
         {/* Divider */}
-        <div className="w-px h-5" style={{ background: 'var(--border)' }} />
+        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-        {/* Dark mode */}
+        {/* Dark mode toggle */}
         <button
           onClick={toggle}
-          className="btn btn-ghost w-8 h-8 p-0 rounded-lg flex items-center justify-center"
-          style={{ height: 32, width: 32 }}
           title={dark ? 'Switch to light mode' : 'Switch to dark mode'}
+          style={{ ...iconBtn, color: dark ? '#EF9F27' : 'var(--text-secondary)' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          {dark
-            ? <MdLightMode size={18} style={{ color: 'var(--warning)' }} />
-            : <MdDarkMode size={18} style={{ color: 'var(--text-secondary)' }} />
-          }
+          {dark ? <MdLightMode size={22} /> : <MdDarkMode size={22} />}
         </button>
 
         {/* Notifications */}
         <button
-          className="btn btn-ghost relative w-8 h-8 p-0 rounded-lg flex items-center justify-center"
-          style={{ height: 32, width: 32 }}
+          style={{ ...iconBtn, position: 'relative', color: 'var(--text-secondary)' }}
+          onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+          onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
         >
-          <MdNotifications size={19} style={{ color: 'var(--text-secondary)' }} />
-          <span
-            className="absolute top-1 right-1 w-2 h-2 rounded-full border-2"
-            style={{ background: 'var(--danger)', borderColor: 'var(--card)' }}
-          />
+          <MdNotifications size={22} />
+          <span style={{
+            position: 'absolute',
+            top: 6,
+            right: 6,
+            width: 7,
+            height: 7,
+            borderRadius: '50%',
+            background: 'var(--danger)',
+            border: '2px solid var(--card)',
+          }} />
         </button>
 
         {/* Divider */}
-        <div className="w-px h-5" style={{ background: 'var(--border)' }} />
+        <div style={{ width: 1, height: 20, background: 'var(--border)', flexShrink: 0 }} />
 
-        {/* Avatar */}
-        <div className="relative">
+        {/* Avatar + menu */}
+        <div style={{ position: 'relative' }}>
           <button
             onClick={() => setMenuOpen(o => !o)}
-            className="flex items-center gap-2 rounded-lg px-2 py-1.5 transition-colors hover:bg-[var(--bg)]"
+            style={{
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 8,
+              height: 34,
+              padding: '0 8px',
+              borderRadius: 8,
+              border: 'none',
+              background: 'transparent',
+              cursor: 'pointer',
+            }}
+            onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
           >
-            <div
-              className="w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold text-white"
-              style={{ background: 'var(--primary)' }}
-            >
-              {initials}
+            <div style={{
+              width: 32,
+              height: 32,
+              borderRadius: '50%',
+              background: 'var(--primary)',
+              color: '#fff',
+              fontSize: 12,
+              fontWeight: 700,
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}>
+              {user?.username?.[0]?.toUpperCase() || 'A'}
             </div>
-            <span className="text-xs font-medium hidden sm:block" style={{ color: 'var(--text)' }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)' }}>
               {user?.username || 'Admin'}
             </span>
           </button>
 
           {menuOpen && (
             <>
-              <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
               <div
-                className="absolute right-0 top-10 z-50 w-44 rounded-lg py-1 text-sm"
-                style={{
-                  background: 'var(--card)',
-                  border: '1px solid var(--border)',
-                  boxShadow: 'var(--card-shadow-md)',
-                }}
-              >
-                <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                  <p className="font-semibold text-xs" style={{ color: 'var(--text)' }}>
+                style={{ position: 'fixed', inset: 0, zIndex: 40 }}
+                onClick={() => setMenuOpen(false)}
+              />
+              <div style={{
+                position: 'absolute',
+                right: 0,
+                top: 40,
+                zIndex: 50,
+                minWidth: 160,
+                background: 'var(--card)',
+                border: '1px solid var(--border)',
+                borderRadius: 10,
+                boxShadow: 'var(--card-shadow-md)',
+                overflow: 'hidden',
+              }}>
+                <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)' }}>
+                  <p style={{ fontSize: 12, fontWeight: 700, color: 'var(--text)', margin: 0 }}>
                     {user?.username}
                   </p>
-                  <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>Administrator</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Administrator</p>
                 </div>
                 <button
                   onClick={() => { setMenuOpen(false); logout(); }}
-                  className="w-full text-left px-3 py-2 text-xs font-medium transition-colors hover:bg-red-50 text-red-500"
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '9px 14px',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--danger)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = '#FEF2F2'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                 >
                   Sign out
                 </button>

@@ -12,7 +12,10 @@ const PAGE_TITLES = {
   '/team':       'All Employees',
 };
 
-const REFRESH_INTERVAL = 60 * 1000;
+const SIDEBAR_W  = 230;
+const SIDEBAR_C  = 64;
+const TOPBAR_H   = 60;
+const REFRESH_MS = 60_000;
 
 export default function Layout() {
   const location = useLocation();
@@ -26,31 +29,44 @@ export default function Layout() {
   }, []);
 
   useEffect(() => {
-    const t = setInterval(doRefresh, REFRESH_INTERVAL);
+    const t = setInterval(doRefresh, REFRESH_MS);
     return () => clearInterval(t);
   }, [doRefresh]);
 
-  const sidebarWidth = collapsed ? 64 : 230;
+  const sw = collapsed ? SIDEBAR_C : SIDEBAR_W;
   const title = PAGE_TITLES[location.pathname] || 'WorkDash';
 
   return (
-    <div className="flex min-h-screen" style={{ background: 'var(--bg)' }}>
-      <Sidebar collapsed={collapsed} />
+    /* Outer shell — full viewport, background from CSS var */
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', display: 'flex' }}>
 
-      <div
-        className="flex-1 flex flex-col min-w-0 transition-all duration-200"
-        style={{ marginLeft: sidebarWidth }}
-      >
+      {/* Fixed sidebar */}
+      <Sidebar collapsed={collapsed} width={sw} />
+
+      {/* Everything to the right of the sidebar */}
+      <div style={{
+        marginLeft: sw,
+        flex: 1,
+        minWidth: 0,
+        display: 'flex',
+        flexDirection: 'column',
+        transition: 'margin-left 0.2s ease',
+      }}>
         <Topbar
           title={title}
-          sidebarCollapsed={collapsed}
+          sidebarWidth={sw}
           onToggleSidebar={() => setCollapsed(c => !c)}
           lastRefresh={lastRefresh}
           onRefresh={doRefresh}
         />
 
-        <main className="flex-1 overflow-auto" style={{ paddingTop: 56 }}>
-          <div className="p-6 max-w-[1600px]">
+        {/* Scrollable content area, below topbar */}
+        <main style={{
+          flex: 1,
+          overflowY: 'auto',
+          paddingTop: TOPBAR_H,
+        }}>
+          <div style={{ padding: '24px', width: '100%' }}>
             <Outlet context={{ refreshKey }} />
           </div>
         </main>

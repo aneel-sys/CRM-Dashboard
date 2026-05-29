@@ -39,12 +39,13 @@ function LogoMark() {
   );
 }
 
-export default function Sidebar({ collapsed }) {
+export default function Sidebar({ collapsed, width }) {
   return (
     <aside
-      className="fixed top-0 left-0 h-screen flex flex-col z-40 transition-all duration-200"
+      className="fixed top-0 left-0 h-screen flex flex-col z-40"
       style={{
-        width: collapsed ? 64 : 230,
+        width,
+        transition: 'width 0.2s ease',
         background: 'var(--sidebar)',
         borderRight: '1px solid rgba(255,255,255,0.06)',
       }}
@@ -87,35 +88,36 @@ export default function Sidebar({ collapsed }) {
                 to={to}
                 end={to === '/'}
                 title={collapsed ? label : undefined}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 rounded-lg mb-0.5 transition-all duration-150 ${
-                    collapsed ? 'justify-center px-0 py-3' : 'px-3 py-2.5'
-                  } ${
-                    isActive
-                      ? 'text-[#1D9E75] font-semibold'
-                      : 'font-medium'
-                  }`
-                }
                 style={({ isActive }) => ({
-                  background: isActive ? 'var(--sidebar-active)' : 'transparent',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 10,
+                  borderRadius: 8,
+                  marginBottom: 2,
+                  padding: collapsed ? '10px 0' : '9px 12px',
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  background: isActive ? 'rgba(29,158,117,0.14)' : 'transparent',
                   color: isActive ? '#1D9E75' : 'rgba(255,255,255,0.55)',
+                  fontWeight: isActive ? 600 : 500,
                   borderLeft: !collapsed
-                    ? isActive
-                      ? '3px solid #1D9E75'
-                      : '3px solid transparent'
+                    ? `3px solid ${isActive ? '#1D9E75' : 'transparent'}`
                     : 'none',
+                  textDecoration: 'none',
+                  fontSize: 13,
+                  transition: 'background 0.15s, color 0.15s',
+                  cursor: 'pointer',
                 })}
                 onMouseEnter={e => {
-                  if (!e.currentTarget.classList.contains('active'))
-                    e.currentTarget.style.background = 'var(--sidebar-hover)';
+                  if (!e.currentTarget.getAttribute('aria-current'))
+                    e.currentTarget.style.background = 'rgba(255,255,255,0.07)';
                 }}
                 onMouseLeave={e => {
-                  if (!e.currentTarget.style.color.includes('rgb(29'))
+                  if (!e.currentTarget.getAttribute('aria-current'))
                     e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <Icon size={18} className="shrink-0" />
-                {!collapsed && <span className="text-[13px]">{label}</span>}
+                <Icon size={17} style={{ flexShrink: 0 }} />
+                {!collapsed && <span>{label}</span>}
               </NavLink>
             ))}
           </div>

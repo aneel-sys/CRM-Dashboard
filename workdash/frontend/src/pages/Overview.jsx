@@ -78,7 +78,7 @@ export default function Overview() {
         <StatCard
           title="Present Today" icon={MdPeople} color="#1D9E75"
           value={stats.present ?? '—'}
-          sub={stats.total != null ? `of ${stats.total} employees` : 'Loading…'}
+          sub={stats.total !== undefined ? `of ${stats.total} employees` : '—'}
           loading={loading}
         />
         <StatCard
