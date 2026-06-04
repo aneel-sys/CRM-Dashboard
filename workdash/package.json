@@ -1,0 +1,17 @@
+{
+  "name": "workdash",
+  "version": "1.0.0",
+  "description": "WorkDash — Worksuite CRM Analytics Dashboard",
+  "private": true,
+  "scripts": {
+    "install:backend": "cd backend && npm install --production",
+    "install:frontend": "cd frontend && npm install",
+    "build": "cd frontend && npm run build",
+    "start": "cd backend && node server.js",
+    "postinstall": "npm run install:backend && npm run install:frontend && npm run build",
+    "dev": "echo 'Run backend and frontend separately — see README.md'"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

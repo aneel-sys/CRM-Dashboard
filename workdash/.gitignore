@@ -1,0 +1,22 @@
+# Dependencies
+node_modules/
+
+# Environment files (contain secrets)
+.env
+.env.production
+.env.local
+
+# Build output (rebuilt on deploy)
+frontend/dist/
+
+# Logs
+logs/
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor
+.vscode/
+.idea/

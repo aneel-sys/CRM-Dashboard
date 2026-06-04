@@ -1,5 +1,6 @@
 require('dotenv').config();
 const express = require('express');
+const path = require('path');
 const cors = require('cors');
 const session = require('express-session');
 
@@ -16,7 +17,8 @@ const app = express();
 const PORT = process.env.APP_PORT || 5000;
 const isProd = process.env.NODE_ENV === 'production';
 
-// Trust nginx reverse proxy so secure cookies and IP detection work correctly
+// Trust reverse proxy so secure cookies and IP detection work correctly
+// (Hostinger's managed Node.js runs behind their own reverse proxy)
 if (isProd) app.set('trust proxy', 1);
 
 app.use(cors({
@@ -54,10 +56,21 @@ app.get('/api/health', (req, res) => {
   res.json({ success: true, status: 'WorkDash API running', time: new Date().toISOString() });
 });
 
-// 404 handler
-app.use((req, res) => {
-  res.status(404).json({ success: false, message: 'Route not found.' });
+// 404 handler for API routes only
+app.all('/api/*', (req, res) => {
+  res.status(404).json({ success: false, message: 'API route not found.' });
 });
+
+// --- Production: serve the React frontend build ---
+if (isProd) {
+  const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+  app.use(express.static(distPath));
+
+  // SPA fallback — any non-API route serves index.html so React Router handles it
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
 
 // Error handler
 app.use((err, req, res, next) => {
