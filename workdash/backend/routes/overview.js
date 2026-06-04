@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
+const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // Simple in-memory cache
@@ -16,7 +17,7 @@ router.get('/today', requireAuth, async (req, res) => {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = process.env.OFFICE_START_TIME || '09:00';
+    const officeStart = await getOfficeStartTime();
 
     // Total active employees
     const [[{ total }]] = await pool.query(
@@ -60,7 +61,7 @@ router.get('/today', requireAuth, async (req, res) => {
 
     // Active projects
     const [[{ activeProjects }]] = await pool.query(
-      `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status = 'active'`
+      `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status NOT IN ('completed', 'canceled')`
     );
 
     // Late arrivals detail for today
@@ -72,8 +73,9 @@ router.get('/today', requireAuth, async (req, res) => {
               TIMESTAMPDIFF(MINUTE, CONCAT(DATE(a.clock_in_time), ' ', ?), a.clock_in_time) as delay_minutes
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE DATE(a.clock_in_time) = ?
          AND TIME(a.clock_in_time) > ?
        ORDER BY a.clock_in_time ASC
@@ -138,7 +140,7 @@ router.get('/today', requireAuth, async (req, res) => {
     // Attendance breakdown for donut
     const [[{ on_leave }]] = await pool.query(
       `SELECT COUNT(*) as on_leave FROM ${tbl('leaves')}
-       WHERE DATE(date) = ? AND status = 'approved'`,
+       WHERE DATE(leave_date) = ? AND status = 'approved'`,
       [today]
     ).catch(() => [[{ on_leave: 0 }]]);
 

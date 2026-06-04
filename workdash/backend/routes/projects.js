@@ -133,8 +133,9 @@ router.get('/:id/members', requireAuth, async (req, res) => {
               ds.name as designation
        FROM ${tbl('project_members')} pm
        JOIN ${tbl('users')} u ON u.id = pm.user_id
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE pm.project_id = ?`,
       [id]
     );

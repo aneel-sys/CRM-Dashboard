@@ -1,12 +1,13 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
+const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
-const officeStart = () => process.env.OFFICE_START_TIME || '09:00';
 
-function buildAttendanceQuery(date, departmentId) {
-  const deptFilter = departmentId ? 'AND u.department_id = ?' : '';
+
+function buildAttendanceQuery(date, departmentId, officeStartTime) {
+  const deptFilter = departmentId ? 'AND ed.department_id = ?' : '';
   const sql = `
     SELECT
       u.id,
@@ -27,17 +28,18 @@ function buildAttendanceQuery(date, departmentId) {
         2
       ) AS hours_worked
     FROM ${tbl('users')} u
+    LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
     LEFT JOIN ${tbl('attendances')} a
       ON a.user_id = u.id AND DATE(a.clock_in_time) = ?
-    LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-    LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+    LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+    LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
     WHERE u.status = 'active'
     ${deptFilter}
     ORDER BY u.name ASC
   `;
 
   // params: date+officeStart for TIMESTAMPDIFF, officeStart for CASE WHEN, date for JOIN, optional deptId
-  const finalParams = [date, officeStart(), officeStart(), date];
+  const finalParams = [date, officeStartTime, officeStartTime, date];
   if (departmentId) finalParams.push(departmentId);
   return { sql, finalParams };
 }
@@ -48,8 +50,9 @@ router.get('/', requireAuth, async (req, res) => {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const departmentId = req.query.department_id || null;
     const statusFilter = req.query.status || null;
+    const officeStartTime = await getOfficeStartTime();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, statusFilter);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, officeStartTime);
     let [rows] = await pool.query(sql, finalParams);
 
     if (statusFilter && statusFilter !== 'all') {
@@ -78,8 +81,9 @@ router.get('/export', requireAuth, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const departmentId = req.query.department_id || null;
+    const officeStartTime = await getOfficeStartTime();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, null);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, officeStartTime);
     const [rows] = await pool.query(sql, finalParams);
 
     const headers = ['Name', 'Department', 'Designation', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
@@ -107,7 +111,7 @@ router.get('/export', requireAuth, async (req, res) => {
 router.get('/departments', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT id, team_name as name FROM ${tbl('departments')} ORDER BY team_name`
+      `SELECT id, team_name as name FROM ${tbl('teams')} ORDER BY team_name`
     );
     res.json({ success: true, departments: rows });
   } catch (err) {

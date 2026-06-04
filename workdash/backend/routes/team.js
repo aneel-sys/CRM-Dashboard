@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
+const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/team?month=5&year=2025&department_id=&search=
@@ -12,12 +13,12 @@ router.get('/', requireAuth, async (req, res) => {
     const search = req.query.search || null;
 
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = process.env.OFFICE_START_TIME || '09:00';
+    const officeStart = await getOfficeStartTime();
 
     const params = [month, year, today];
     let deptFilter = '';
     if (departmentId) {
-      deptFilter = 'AND u.department_id = ?';
+      deptFilter = 'AND ed.department_id = ?';
       params.push(departmentId);
     }
     let searchFilter = '';
@@ -42,9 +43,10 @@ router.get('/', requireAuth, async (req, res) => {
                   THEN CASE WHEN TIME(a.clock_in_time) > ? THEN 'Late' ELSE 'Present' END
                   END) as today_status
        FROM ${tbl('users')} u
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
        LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE u.status = 'active'
        ${deptFilter} ${searchFilter}
        GROUP BY u.id, u.name, u.email, d.team_name, ds.name, u.status
@@ -82,7 +84,7 @@ router.get('/', requireAuth, async (req, res) => {
       const [rows] = await pool.query(
         `SELECT pm.user_id, COUNT(DISTINCT pm.project_id) as active_projects
          FROM ${tbl('project_members')} pm
-         JOIN ${tbl('projects')} p ON p.id = pm.project_id AND p.status = 'active'
+         JOIN ${tbl('projects')} p ON p.id = pm.project_id AND p.status NOT IN ('completed', 'canceled')
          GROUP BY pm.user_id`
       );
       rows.forEach(r => { projectMap[r.user_id] = r.active_projects; });
@@ -114,16 +116,17 @@ router.get('/export', requireAuth, async (req, res) => {
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = process.env.OFFICE_START_TIME || '09:00';
+    const officeStart = await getOfficeStartTime();
 
     const [employees] = await pool.query(
       `SELECT u.id, u.name, d.team_name as department, ds.name as designation,
               COUNT(DISTINCT CASE WHEN MONTH(a.clock_in_time) = ? AND YEAR(a.clock_in_time) = ?
                 THEN DATE(a.clock_in_time) END) as present_days
        FROM ${tbl('users')} u
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
        LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE u.status = 'active'
        GROUP BY u.id, u.name, d.team_name, ds.name
        ORDER BY u.name`,

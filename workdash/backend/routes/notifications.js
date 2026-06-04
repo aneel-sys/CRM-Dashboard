@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
+const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/notifications
@@ -8,7 +9,7 @@ const { requireAuth } = require('../middleware/auth');
 router.get('/', requireAuth, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = process.env.OFFICE_START_TIME || '09:00';
+    const officeStart = await getOfficeStartTime();
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
@@ -96,7 +97,7 @@ router.get('/', requireAuth, async (req, res) => {
       `SELECT project_name, deadline, status
        FROM ${tbl('projects')}
        WHERE deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
-         AND status != 'completed'
+          AND status NOT IN ('completed', 'canceled')
        ORDER BY deadline ASC
        LIMIT 10`
     );
@@ -117,7 +118,7 @@ router.get('/', requireAuth, async (req, res) => {
     // 5. Overdue projects (deadline passed, not completed)
     const [[{ overdueCount }]] = await pool.query(
       `SELECT COUNT(*) as overdueCount FROM ${tbl('projects')}
-       WHERE deadline < CURDATE() AND status NOT IN ('completed', 'cancelled')`
+       WHERE deadline < CURDATE() AND status NOT IN ('completed', 'canceled')`
     );
     if (overdueCount > 0) {
       notifications.push({

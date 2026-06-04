@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
+const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/employees
@@ -12,8 +13,9 @@ router.get('/', requireAuth, async (req, res) => {
               ds.name as designation,
               u.status, u.created_at
        FROM ${tbl('users')} u
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE u.status = 'active'
        ORDER BY u.name`
     );
@@ -29,7 +31,7 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     const { id } = req.params;
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
-    const officeStart = process.env.OFFICE_START_TIME || '09:00';
+    const officeStart = await getOfficeStartTime();
 
     // Employee info
     const [[employee]] = await pool.query(
@@ -38,8 +40,9 @@ router.get('/:id/report', requireAuth, async (req, res) => {
               ds.name as designation,
               u.created_at
        FROM ${tbl('users')} u
-       LEFT JOIN ${tbl('departments')} d ON d.id = u.department_id
-       LEFT JOIN ${tbl('designations')} ds ON ds.id = u.designation_id
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE u.id = ?`,
       [id]
     );
@@ -66,9 +69,9 @@ router.get('/:id/report', requireAuth, async (req, res) => {
 
     // Leave days this month
     const [leaveRows] = await pool.query(
-      `SELECT date FROM ${tbl('leaves')}
+      `SELECT leave_date as date FROM ${tbl('leaves')}
        WHERE user_id = ? AND status = 'approved'
-         AND MONTH(date) = ? AND YEAR(date) = ?`,
+         AND MONTH(leave_date) = ? AND YEAR(leave_date) = ?`,
       [id, month, year]
     ).catch(() => [[]]);
 
