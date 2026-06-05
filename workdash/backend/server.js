@@ -14,7 +14,9 @@ const teamRoutes = require('./routes/team');
 const notificationRoutes = require('./routes/notifications');
 
 const app = express();
-const PORT = process.env.APP_PORT || 5000;
+// Hostinger managed Node.js injects PORT automatically — use it first.
+// APP_PORT is used as fallback for local development.
+const PORT = process.env.PORT || process.env.APP_PORT || 5000;
 const isProd = process.env.NODE_ENV === 'production';
 
 // Trust reverse proxy so secure cookies and IP detection work correctly
