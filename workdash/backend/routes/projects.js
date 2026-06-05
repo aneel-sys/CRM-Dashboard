@@ -19,48 +19,81 @@ router.get('/', requireAuth, async (req, res) => {
       params.push(`%${search}%`);
     }
 
+    // Base project list — safe minimal query
     const [projects] = await pool.query(
       `SELECT p.id, p.project_name as name, p.status, p.deadline, p.created_at,
-              c.company_name as client_name,
-              COUNT(DISTINCT pm.user_id) as member_count,
-              COUNT(DISTINCT t.id) as total_tasks,
-              COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.id END) as completed_tasks
+              c.company_name as client_name
        FROM ${tbl('projects')} p
        LEFT JOIN ${tbl('clients')} c ON c.id = p.client_id
-       LEFT JOIN ${tbl('project_members')} pm ON pm.project_id = p.id
-       LEFT JOIN ${tbl('tasks')} t ON t.project_id = p.id
        ${where}
-       GROUP BY p.id, p.project_name, p.status, p.deadline, p.created_at, c.company_name
        ORDER BY p.created_at DESC`,
       params
     );
 
-    // Get hours per project
-    let hoursMap = {};
-    try {
-      const [hours] = await pool.query(
-        `SELECT project_id, COALESCE(SUM(total_hours), 0) as hours
-         FROM ${tbl('project_time_logs')}
-         GROUP BY project_id`
-      );
-      hours.forEach(h => { hoursMap[h.project_id] = parseFloat(h.hours) || 0; });
-    } catch {
+    const ids = projects.map(p => p.id);
+
+    // Member counts per project
+    let memberMap = {};
+    if (ids.length) {
       try {
-        const [hours] = await pool.query(
-          `SELECT project_id, COALESCE(SUM(total_hours), 0) as hours
-           FROM ${tbl('timelogs')} GROUP BY project_id`
+        const [rows] = await pool.query(
+          `SELECT project_id, COUNT(DISTINCT user_id) as cnt
+           FROM ${tbl('project_members')} WHERE project_id IN (?)
+           GROUP BY project_id`, [ids]
         );
-        hours.forEach(h => { hoursMap[h.project_id] = parseFloat(h.hours) || 0; });
+        rows.forEach(r => { memberMap[r.project_id] = r.cnt; });
       } catch {}
     }
 
-    const result = projects.map(p => ({
-      ...p,
-      hours_logged: hoursMap[p.id] || 0,
-      completion_pct: p.total_tasks
-        ? Math.round((p.completed_tasks / p.total_tasks) * 100)
-        : 0,
-    }));
+    // Task counts per project
+    let taskMap = {}, doneMap = {};
+    if (ids.length) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT project_id,
+                  COUNT(*) as total,
+                  SUM(CASE WHEN status IN ('complete','completed','done') THEN 1 ELSE 0 END) as done
+           FROM ${tbl('tasks')} WHERE project_id IN (?)
+           GROUP BY project_id`, [ids]
+        );
+        rows.forEach(r => { taskMap[r.project_id] = r.total; doneMap[r.project_id] = r.done; });
+      } catch {}
+    }
+
+    // Hours per project
+    let hoursMap = {};
+    if (ids.length) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT project_id, COALESCE(SUM(total_hours), 0) as hours
+           FROM ${tbl('project_time_logs')} WHERE project_id IN (?)
+           GROUP BY project_id`, [ids]
+        );
+        rows.forEach(r => { hoursMap[r.project_id] = parseFloat(r.hours) || 0; });
+      } catch {
+        try {
+          const [rows] = await pool.query(
+            `SELECT project_id, COALESCE(SUM(total_hours), 0) as hours
+             FROM ${tbl('timelogs')} WHERE project_id IN (?)
+             GROUP BY project_id`, [ids]
+          );
+          rows.forEach(r => { hoursMap[r.project_id] = parseFloat(r.hours) || 0; });
+        } catch {}
+      }
+    }
+
+    const result = projects.map(p => {
+      const total = taskMap[p.id] || 0;
+      const done  = doneMap[p.id]  || 0;
+      return {
+        ...p,
+        member_count:    memberMap[p.id] || 0,
+        total_tasks:     total,
+        completed_tasks: done,
+        hours_logged:    hoursMap[p.id]  || 0,
+        completion_pct:  total ? Math.round((done / total) * 100) : 0,
+      };
+    });
 
     res.json({ success: true, projects: result });
   } catch (err) {
@@ -75,22 +108,33 @@ router.get('/:id', requireAuth, async (req, res) => {
     const { id } = req.params;
     const [[project]] = await pool.query(
       `SELECT p.id, p.project_name as name, p.status, p.deadline, p.created_at,
-              c.company_name as client_name,
-              COUNT(DISTINCT pm.user_id) as member_count,
-              COUNT(DISTINCT t.id) as total_tasks,
-              COUNT(DISTINCT CASE WHEN t.status = 'completed' THEN t.id END) as completed_tasks
+              c.company_name as client_name
        FROM ${tbl('projects')} p
        LEFT JOIN ${tbl('clients')} c ON c.id = p.client_id
-       LEFT JOIN ${tbl('project_members')} pm ON pm.project_id = p.id
-       LEFT JOIN ${tbl('tasks')} t ON t.project_id = p.id
-       WHERE p.id = ?
-       GROUP BY p.id, p.project_name, p.status, p.deadline, p.created_at, c.company_name`,
+       WHERE p.id = ?`,
       [id]
     );
 
     if (!project) return res.status(404).json({ success: false, message: 'Project not found.' });
 
-    let totalHours = 0;
+    let member_count = 0, total_tasks = 0, completed_tasks = 0, totalHours = 0;
+
+    try {
+      const [[r]] = await pool.query(
+        `SELECT COUNT(DISTINCT user_id) as cnt FROM ${tbl('project_members')} WHERE project_id = ?`, [id]
+      );
+      member_count = r.cnt;
+    } catch {}
+
+    try {
+      const [[r]] = await pool.query(
+        `SELECT COUNT(*) as total,
+                SUM(CASE WHEN status IN ('complete','completed','done') THEN 1 ELSE 0 END) as done
+         FROM ${tbl('tasks')} WHERE project_id = ?`, [id]
+      );
+      total_tasks = r.total; completed_tasks = r.done || 0;
+    } catch {}
+
     try {
       const [[row]] = await pool.query(
         `SELECT COALESCE(SUM(total_hours), 0) as hours FROM ${tbl('project_time_logs')} WHERE project_id = ?`, [id]
@@ -109,13 +153,15 @@ router.get('/:id', requireAuth, async (req, res) => {
       success: true,
       project: {
         ...project,
+        member_count,
+        total_tasks,
+        completed_tasks,
         hours_logged: totalHours,
-        completion_pct: project.total_tasks
-          ? Math.round((project.completed_tasks / project.total_tasks) * 100)
-          : 0,
+        completion_pct: total_tasks ? Math.round((completed_tasks / total_tasks) * 100) : 0,
       },
     });
   } catch (err) {
+    console.error('Project detail error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });
