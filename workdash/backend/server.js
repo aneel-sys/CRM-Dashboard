@@ -59,7 +59,7 @@ app.get('/api/health', (req, res) => {
 });
 
 // 404 handler for API routes only
-app.all('/api/*', (req, res) => {
+app.all('/api/{*splat}', (req, res) => {
   res.status(404).json({ success: false, message: 'API route not found.' });
 });
 
@@ -69,7 +69,7 @@ if (isProd) {
   app.use(express.static(distPath));
 
   // SPA fallback — any non-API route serves index.html so React Router handles it
-  app.get('*', (req, res) => {
+  app.get('{*splat}', (req, res) => {
     res.sendFile(path.join(distPath, 'index.html'));
   });
 }
