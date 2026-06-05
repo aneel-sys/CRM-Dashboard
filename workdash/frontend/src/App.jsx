@@ -10,6 +10,7 @@ import PersonReport from './pages/PersonReport';
 import Projects from './pages/Projects';
 import Timings from './pages/Timings';
 import Team from './pages/Team';
+import Notifications from './pages/Notifications';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -51,6 +52,7 @@ function AppRoutes() {
         <Route path="/projects" element={<Projects />} />
         <Route path="/timings" element={<Timings />} />
         <Route path="/team" element={<Team />} />
+        <Route path="/notifications" element={<Notifications />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>

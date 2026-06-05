@@ -142,6 +142,86 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/notifications/expanded — full employee/project lists per category
+router.get('/expanded', requireAuth, async (_req, res) => {
+  try {
+    const today = new Date().toISOString().slice(0, 10);
+    const officeStart = await getOfficeStartTime();
+    const now = new Date();
+    const month = now.getMonth() + 1;
+    const year = now.getFullYear();
+    const workingDays = getWorkingDays(year, month);
+
+    const [lateRows] = await pool.query(
+      `SELECT u.id, u.name, TIME(a.clock_in_time) as clock_in,
+              TIMESTAMPDIFF(MINUTE, CONCAT(DATE(a.clock_in_time), ' ', ?), a.clock_in_time) as delay
+       FROM ${tbl('attendances')} a
+       JOIN ${tbl('users')} u ON u.id = a.user_id
+       WHERE DATE(a.clock_in_time) = ? AND TIME(a.clock_in_time) > ?
+       ORDER BY delay DESC`,
+      [officeStart, today, officeStart]
+    );
+
+    const [presentRows] = await pool.query(
+      `SELECT DISTINCT user_id FROM ${tbl('attendances')} WHERE DATE(clock_in_time) = ?`, [today]
+    );
+    const presentIds = new Set(presentRows.map(r => r.user_id));
+
+    const [allUsers] = await pool.query(
+      `SELECT u.id, u.name, ed.department_id
+       FROM ${tbl('users')} u
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       WHERE u.status = 'active' ORDER BY u.name`
+    );
+    const absentRows = allUsers.filter(u => !presentIds.has(u.id));
+
+    const threshold = workingDays > 0 ? Math.floor(workingDays * 0.75) : 0;
+    const [lowAttRows] = await pool.query(
+      `SELECT u.id, u.name,
+              COUNT(DISTINCT DATE(a.clock_in_time)) as present_days
+       FROM ${tbl('users')} u
+       LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
+         AND MONTH(a.clock_in_time) = ? AND YEAR(a.clock_in_time) = ?
+       WHERE u.status = 'active'
+       GROUP BY u.id, u.name
+       HAVING present_days < ?
+       ORDER BY present_days ASC`,
+      [month, year, threshold]
+    );
+
+    const [deadlineRows] = await pool.query(
+      `SELECT id, project_name, deadline, status
+       FROM ${tbl('projects')}
+       WHERE deadline BETWEEN CURDATE() AND DATE_ADD(CURDATE(), INTERVAL 7 DAY)
+         AND status NOT IN ('completed','canceled')
+       ORDER BY deadline ASC`
+    );
+
+    const [overdueRows] = await pool.query(
+      `SELECT id, project_name, deadline, status
+       FROM ${tbl('projects')}
+       WHERE deadline < CURDATE() AND status NOT IN ('completed','canceled')
+       ORDER BY deadline ASC
+       LIMIT 50`
+    );
+
+    res.json({
+      success: true,
+      workingDays,
+      month,
+      year,
+      lateToday: lateRows,
+      absentToday: absentRows,
+      lowAttendance: lowAttRows.map(r => ({ ...r, workingDays })),
+      upcomingDeadlines: deadlineRows,
+      overdueProjects: overdueRows,
+    });
+  } catch (err) {
+    console.error('Notifications expanded error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 function getWorkingDays(year, month) {
   const date = new Date(year, month - 1, 1);
   let count = 0;

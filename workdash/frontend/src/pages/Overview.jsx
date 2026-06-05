@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
@@ -36,6 +36,7 @@ function SectionCard({ title, subtitle, children, action }) {
 
 export default function Overview() {
   const { refreshKey } = useOutletContext();
+  const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -75,30 +76,21 @@ export default function Overview() {
     <div className="space-y-5 fade-up">
       {/* Stat Cards */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard
-          title="Present Today" icon={MdPeople} color="#1D9E75"
-          value={stats.present ?? '—'}
-          sub={stats.total !== undefined ? `of ${stats.total} employees` : '—'}
-          loading={loading}
-        />
-        <StatCard
-          title="Late Today" icon={MdAccessTime} color="#EF9F27"
-          value={stats.late ?? '—'}
-          sub="arrived after 09:00 AM"
-          loading={loading}
-        />
-        <StatCard
-          title="Absent Today" icon={MdPersonOff} color="#E24B4A"
-          value={stats.absent ?? '—'}
-          sub="no clock-in recorded"
-          loading={loading}
-        />
-        <StatCard
-          title="Hours This Month" icon={MdAvTimer} color="#378ADD"
-          value={stats.monthHours != null ? `${stats.monthHours}h` : '—'}
-          sub="across all projects"
-          loading={loading}
-        />
+        {[
+          { title: 'Present Today', icon: MdPeople, color: '#1D9E75', value: stats.present ?? '—', sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance' },
+          { title: 'Late Today', icon: MdAccessTime, color: '#EF9F27', value: stats.late ?? '—', sub: 'arrived after 09:00 AM', to: '/attendance?status=Late' },
+          { title: 'Absent Today', icon: MdPersonOff, color: '#E24B4A', value: stats.absent ?? '—', sub: 'no clock-in recorded', to: '/attendance?status=Absent' },
+          { title: 'Hours This Month', icon: MdAvTimer, color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects', to: '/timings' },
+        ].map(card => (
+          <div
+            key={card.title}
+            onClick={() => navigate(card.to)}
+            style={{ cursor: 'pointer' }}
+            title={`Go to ${card.title}`}
+          >
+            <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} />
+          </div>
+        ))}
       </div>
 
       {/* Mid row */}
@@ -142,7 +134,13 @@ export default function Overview() {
                 </thead>
                 <tbody>
                   {data.lateArrivals.map(row => (
-                    <tr key={row.id}>
+                    <tr
+                      key={row.id}
+                      onClick={() => navigate(`/person?id=${row.id}`)}
+                      style={{ cursor: 'pointer' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}
+                    >
                       <td>
                         <div>
                           <p className="font-semibold text-[13px]" style={{ color: 'var(--text)' }}>{row.name}</p>
@@ -252,7 +250,14 @@ export default function Overview() {
           ) : (
             <div className="space-y-3">
               {(data?.topWorkers || []).slice(0, 3).map((w, i) => (
-                <div key={w.id} className="flex items-center gap-3">
+                <div
+                  key={w.id}
+                  className="flex items-center gap-3"
+                  onClick={() => navigate(`/person?id=${w.id}`)}
+                  style={{ cursor: 'pointer', borderRadius: 8, padding: '4px 6px', margin: '-4px -6px' }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}
+                >
                   <span
                     className="w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold text-white shrink-0"
                     style={{ background: i === 0 ? '#EF9F27' : i === 1 ? '#9CA3AF' : '#D97706' }}

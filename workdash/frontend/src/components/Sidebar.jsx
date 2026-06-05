@@ -1,7 +1,7 @@
 import { NavLink } from 'react-router-dom';
 import {
   MdDashboard, MdAccessTime, MdPerson,
-  MdFolderOpen, MdSchedule, MdPeople,
+  MdFolderOpen, MdSchedule, MdPeople, MdNotifications,
 } from 'react-icons/md';
 
 const NAV = [
@@ -10,6 +10,7 @@ const NAV = [
     items: [
       { to: '/', icon: MdDashboard, label: 'Overview' },
       { to: '/attendance', icon: MdAccessTime, label: 'Attendance' },
+      { to: '/notifications', icon: MdNotifications, label: 'Alerts' },
     ],
   },
   {

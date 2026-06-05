@@ -4,12 +4,13 @@ import Sidebar from './Sidebar';
 import Topbar from './Topbar';
 
 const PAGE_TITLES = {
-  '/':           'Overview Dashboard',
-  '/attendance': 'Attendance & Late Tracking',
-  '/person':     'Per Person Monthly Progress',
-  '/projects':   'Projects Overview',
-  '/timings':    'Timings / Timesheets',
-  '/team':       'All Employees',
+  '/':               'Overview Dashboard',
+  '/attendance':     'Attendance & Late Tracking',
+  '/person':         'Per Person Monthly Progress',
+  '/projects':       'Projects Overview',
+  '/timings':        'Timings / Timesheets',
+  '/team':           'All Employees',
+  '/notifications':  'Alerts & Notifications',
 };
 
 const SIDEBAR_W  = 230;

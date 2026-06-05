@@ -38,7 +38,7 @@ router.get('/', requireAuth, async (req, res) => {
         );
         rows.forEach(r => { clientMap[r.id] = r.company_name; });
         break; // stop on first success
-      } catch {}
+      } catch { }
     }
 
     const ids = projects.map(p => p.id);
@@ -53,7 +53,7 @@ router.get('/', requireAuth, async (req, res) => {
            GROUP BY project_id`, [ids]
         );
         rows.forEach(r => { memberMap[r.project_id] = r.cnt; });
-      } catch {}
+      } catch { }
     }
 
     // Task counts per project
@@ -68,7 +68,7 @@ router.get('/', requireAuth, async (req, res) => {
            GROUP BY project_id`, [ids]
         );
         rows.forEach(r => { taskMap[r.project_id] = r.total; doneMap[r.project_id] = r.done; });
-      } catch {}
+      } catch { }
     }
 
     // Hours per project
@@ -89,21 +89,21 @@ router.get('/', requireAuth, async (req, res) => {
              GROUP BY project_id`, [ids]
           );
           rows.forEach(r => { hoursMap[r.project_id] = parseFloat(r.hours) || 0; });
-        } catch {}
+        } catch { }
       }
     }
 
     const result = projects.map(p => {
       const total = taskMap[p.id] || 0;
-      const done  = doneMap[p.id]  || 0;
+      const done = doneMap[p.id] || 0;
       return {
         ...p,
-        client_name:     clientMap[p.client_id] || null,
-        member_count:    memberMap[p.id] || 0,
-        total_tasks:     total,
+        client_name: clientMap[p.client_id] || null,
+        member_count: memberMap[p.id] || 0,
+        total_tasks: total,
         completed_tasks: done,
-        hours_logged:    hoursMap[p.id]  || 0,
-        completion_pct:  total ? Math.round((done / total) * 100) : 0,
+        hours_logged: hoursMap[p.id] || 0,
+        completion_pct: total ? Math.round((done / total) * 100) : 0,
       };
     });
 
@@ -135,7 +135,7 @@ router.get('/:id', requireAuth, async (req, res) => {
             `SELECT COALESCE(company_name, name) as n FROM ${tbl(t)} WHERE id = ?`, [project.client_id]
           );
           if (r) { client_name = r.n; break; }
-        } catch {}
+        } catch { }
       }
     }
 
@@ -146,7 +146,7 @@ router.get('/:id', requireAuth, async (req, res) => {
         `SELECT COUNT(DISTINCT user_id) as cnt FROM ${tbl('project_members')} WHERE project_id = ?`, [id]
       );
       member_count = r.cnt;
-    } catch {}
+    } catch { }
 
     try {
       const [[r]] = await pool.query(
@@ -155,7 +155,7 @@ router.get('/:id', requireAuth, async (req, res) => {
          FROM ${tbl('tasks')} WHERE project_id = ?`, [id]
       );
       total_tasks = r.total; completed_tasks = r.done || 0;
-    } catch {}
+    } catch { }
 
     try {
       const [[row]] = await pool.query(
@@ -168,7 +168,7 @@ router.get('/:id', requireAuth, async (req, res) => {
           `SELECT COALESCE(SUM(total_hours), 0) as hours FROM ${tbl('timelogs')} WHERE project_id = ?`, [id]
         );
         totalHours = parseFloat(row.hours) || 0;
-      } catch {}
+      } catch { }
     }
 
     res.json({
@@ -232,7 +232,7 @@ router.get('/:id/members', requireAuth, async (req, res) => {
           [id, month, year]
         );
         rows.forEach(r => { memberHours[r.user_id] = parseFloat(r.hours) || 0; });
-      } catch {}
+      } catch { }
     }
 
     const result = members.map(m => ({ ...m, hours: memberHours[m.id] || 0 }));
