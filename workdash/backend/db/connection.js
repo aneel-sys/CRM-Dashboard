@@ -1,10 +1,10 @@
 const mysql = require('mysql2/promise');
 require('dotenv').config();
 
-// CRM uses 127.0.0.1:3306 via TCP — match that exactly
+// Hostinger shared MySQL only permits socket connections for @'localhost' users.
+// TCP via 127.0.0.1 is rejected. Use the Unix socket instead.
 const pool = mysql.createPool({
-  host: '127.0.0.1',
-  port: 3306,
+  socketPath: process.env.DB_SOCKET || '/var/lib/mysql/mysql.sock',
   database: process.env.DB_NAME,
   user: process.env.DB_USER,
   password: process.env.DB_PASS,
