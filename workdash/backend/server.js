@@ -65,13 +65,27 @@ app.all('/api/{*splat}', (req, res) => {
 
 // --- Production: serve the React frontend build ---
 if (isProd) {
+  const fs = require('fs');
   const distPath = path.join(__dirname, '..', 'frontend', 'dist');
-  app.use(express.static(distPath));
+  console.log('📂 Frontend dist path:', distPath, '| exists:', fs.existsSync(distPath));
 
-  // SPA fallback — any non-API route serves index.html so React Router handles it
-  app.get('{*splat}', (req, res) => {
-    res.sendFile(path.join(distPath, 'index.html'));
-  });
+  if (fs.existsSync(distPath)) {
+    app.use(express.static(distPath));
+
+    // SPA fallback — any non-API route serves index.html so React Router handles it
+    app.get('{*splat}', (req, res) => {
+      res.sendFile(path.join(distPath, 'index.html'));
+    });
+  } else {
+    // Frontend not built yet — return a helpful message instead of ENOENT errors
+    app.get('{*splat}', (req, res) => {
+      res.status(503).json({
+        success: false,
+        message: 'Frontend not built yet. Run postinstall or deploy with build step.',
+        distPath,
+      });
+    });
+  }
 }
 
 // Error handler
