@@ -3,6 +3,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const session = require('express-session');
+const FileStore = require('session-file-store')(session);
 
 const authRoutes = require('./routes/auth');
 const overviewRoutes = require('./routes/overview');
@@ -32,14 +33,20 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 app.use(session({
+  store: new FileStore({
+    path: path.join(__dirname, 'sessions'),
+    ttl: 7 * 24 * 60 * 60,   // 7 days in seconds
+    retries: 1,
+    logFn: () => {},          // silence verbose file-store logs
+  }),
   secret: process.env.SESSION_SECRET || 'workdash_secret_change_me',
   resave: false,
   saveUninitialized: false,
   cookie: {
-    secure: isProd,     // true in prod (HTTPS via nginx), false in dev
+    secure: isProd,
     httpOnly: true,
     sameSite: isProd ? 'strict' : 'lax',
-    maxAge: 24 * 60 * 60 * 1000, // 24 hours
+    maxAge: 7 * 24 * 60 * 60 * 1000, // 7 days
   },
 }));
 
