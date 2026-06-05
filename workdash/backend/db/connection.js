@@ -22,6 +22,10 @@ const pool = mysql.createPool({
 const prefix = process.env.DB_PREFIX || '';
 const tbl = (name) => `${prefix}${name}`;
 
+// Debug: log masked credentials to diagnose auth issues (remove after fix)
+const maskPwd = (s) => s ? `${s.slice(0,3)}${'*'.repeat(s.length - 5)}${s.slice(-2)} (len=${s.length})` : 'EMPTY';
+console.log(`🔑 DB config → host=${dbHost}, user=${process.env.DB_USER}, db=${process.env.DB_NAME}, pass=${maskPwd(process.env.DB_PASS)}`);
+
 // Verify connection on startup
 pool.getConnection()
   .then(conn => {
