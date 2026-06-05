@@ -66,7 +66,8 @@ app.all('/api/{*splat}', (req, res) => {
 // --- Production: serve the React frontend build ---
 if (isProd) {
   const fs = require('fs');
-  const distPath = path.join(__dirname, '..', 'frontend', 'dist');
+  // Frontend dist is committed as backend/public/ since Hostinger only deploys the backend dir
+  const distPath = path.join(__dirname, 'public');
   console.log('📂 Frontend dist path:', distPath, '| exists:', fs.existsSync(distPath));
 
   if (fs.existsSync(distPath)) {
@@ -77,11 +78,10 @@ if (isProd) {
       res.sendFile(path.join(distPath, 'index.html'));
     });
   } else {
-    // Frontend not built yet — return a helpful message instead of ENOENT errors
     app.get('{*splat}', (req, res) => {
       res.status(503).json({
         success: false,
-        message: 'Frontend not built yet. Run postinstall or deploy with build step.',
+        message: 'Frontend not built. The public/ directory is missing.',
         distPath,
       });
     });
