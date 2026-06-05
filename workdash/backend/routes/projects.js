@@ -19,16 +19,27 @@ router.get('/', requireAuth, async (req, res) => {
       params.push(`%${search}%`);
     }
 
-    // Base project list — safe minimal query
+    // Base project list — no client join (resolved separately below)
     const [projects] = await pool.query(
       `SELECT p.id, p.project_name as name, p.status, p.deadline, p.created_at,
-              c.company_name as client_name
+              p.client_id
        FROM ${tbl('projects')} p
-       LEFT JOIN ${tbl('clients')} c ON c.id = p.client_id
        ${where}
        ORDER BY p.created_at DESC`,
       params
     );
+
+    // Resolve client names — try client_details first, then clients, then companies
+    let clientMap = {};
+    for (const clientTable of ['client_details', 'clients', 'companies']) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT id, COALESCE(company_name, name) as company_name FROM ${tbl(clientTable)}`
+        );
+        rows.forEach(r => { clientMap[r.id] = r.company_name; });
+        break; // stop on first success
+      } catch {}
+    }
 
     const ids = projects.map(p => p.id);
 
@@ -87,6 +98,7 @@ router.get('/', requireAuth, async (req, res) => {
       const done  = doneMap[p.id]  || 0;
       return {
         ...p,
+        client_name:     clientMap[p.client_id] || null,
         member_count:    memberMap[p.id] || 0,
         total_tasks:     total,
         completed_tasks: done,
@@ -107,15 +119,25 @@ router.get('/:id', requireAuth, async (req, res) => {
   try {
     const { id } = req.params;
     const [[project]] = await pool.query(
-      `SELECT p.id, p.project_name as name, p.status, p.deadline, p.created_at,
-              c.company_name as client_name
-       FROM ${tbl('projects')} p
-       LEFT JOIN ${tbl('clients')} c ON c.id = p.client_id
-       WHERE p.id = ?`,
+      `SELECT p.id, p.project_name as name, p.status, p.deadline, p.created_at, p.client_id
+       FROM ${tbl('projects')} p WHERE p.id = ?`,
       [id]
     );
 
     if (!project) return res.status(404).json({ success: false, message: 'Project not found.' });
+
+    // Resolve client name
+    let client_name = null;
+    if (project.client_id) {
+      for (const t of ['client_details', 'clients', 'companies']) {
+        try {
+          const [[r]] = await pool.query(
+            `SELECT COALESCE(company_name, name) as n FROM ${tbl(t)} WHERE id = ?`, [project.client_id]
+          );
+          if (r) { client_name = r.n; break; }
+        } catch {}
+      }
+    }
 
     let member_count = 0, total_tasks = 0, completed_tasks = 0, totalHours = 0;
 
@@ -153,6 +175,7 @@ router.get('/:id', requireAuth, async (req, res) => {
       success: true,
       project: {
         ...project,
+        client_name,
         member_count,
         total_tasks,
         completed_tasks,
