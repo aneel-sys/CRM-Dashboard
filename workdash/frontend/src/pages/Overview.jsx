@@ -1,11 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
   PieChart, Pie, Cell, Legend,
 } from 'recharts';
 import {
-  MdPeople, MdAccessTime, MdPersonOff, MdAvTimer, MdBeachAccess, MdWork,
+  MdPeople, MdAccessTime, MdPersonOff, MdAvTimer, MdBeachAccess, MdWork, MdSignalWifi4Bar,
 } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
@@ -69,23 +69,56 @@ export default function Overview() {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [live, setLive] = useState(false);
+  const esRef = useRef(null);
+
+  const applyData = (payload) => {
+    setData(payload);
+    setLoading(false);
+  };
 
   useEffect(() => {
+    // Initial HTTP fetch so the page loads immediately
     setLoading(true);
     api.get('/overview/today')
-      .then(res => setData(res.data))
-      .catch(err => toast(err.response?.data?.message || 'Failed to load overview'))
-      .finally(() => setLoading(false));
+      .then(res => applyData(res.data))
+      .catch(err => {
+        toast(err.response?.data?.message || 'Failed to load overview');
+        setLoading(false);
+      });
+
+    // SSE stream for real-time push updates
+    const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
+    const es = new EventSource(`${baseUrl}/overview/stream`, { withCredentials: true });
+    esRef.current = es;
+
+    es.onopen = () => setLive(true);
+    es.onmessage = (e) => {
+      try {
+        const payload = JSON.parse(e.data);
+        if (payload.success) applyData(payload);
+      } catch { /* ignore malformed */ }
+    };
+    es.onerror = () => setLive(false);
+
+    return () => {
+      es.close();
+      setLive(false);
+    };
   }, [refreshKey]);
 
   const { timeFormat } = useSettings();
   const fmt = dt => fmtTime(dt, timeFormat);
   const stats = data?.stats || {};
 
-  const weeklyData = (data?.weeklyHours || []).map(w => ({
-    name: `W${w.week}`,
-    hours: parseFloat(w.hours) || 0,
-  }));
+  const dailyData = (data?.dailyHours || []).map(d => {
+    const dt = new Date(d.date + 'T00:00:00');
+    return {
+      name: dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      hours: parseFloat(d.hours) || 0,
+      employees: d.employees || 0,
+    };
+  });
 
   const donutData = [
     { name: 'Present',  value: data?.attendanceBreakdown?.present  || 0 },
@@ -98,13 +131,38 @@ export default function Overview() {
 
   const customTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
+    const d = payload[0].payload;
     return (
       <div className="card px-3 py-2 text-xs" style={{ boxShadow: 'var(--card-shadow-md)' }}>
-        <p className="font-semibold" style={{ color: 'var(--text)' }}>{payload[0].payload.name}</p>
-        <p style={{ color: 'var(--primary)' }}>{payload[0].value}h</p>
+        <p className="font-semibold" style={{ color: 'var(--text)', marginBottom: 2 }}>{d.name}</p>
+        <p style={{ color: 'var(--primary)', margin: 0 }}>{d.hours}h logged</p>
+        {d.employees > 0 && <p style={{ color: 'var(--text-muted)', margin: 0 }}>{d.employees} employee{d.employees !== 1 ? 's' : ''}</p>}
       </div>
     );
   };
+
+  const donutLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
+    const RADIAN = Math.PI / 180;
+    const r = innerRadius + (outerRadius - innerRadius) * 0.5;
+    const x = cx + r * Math.cos(-midAngle * RADIAN);
+    const y = cy + r * Math.sin(-midAngle * RADIAN);
+    return value > 0 ? (
+      <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{value}</text>
+    ) : null;
+  };
+
+  const donutLegend = ({ payload }) => (
+    <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+      {payload.map((entry, i) => (
+        <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+          <span style={{ width: 8, height: 8, borderRadius: '50%', background: entry.color, display: 'inline-block' }} />
+          <span style={{ fontSize: 11, color: 'var(--text-secondary)', fontWeight: 500 }}>
+            {entry.value} <strong style={{ color: 'var(--text)' }}>{entry.payload.value}</strong>
+          </span>
+        </div>
+      ))}
+    </div>
+  );
 
   return (
     <div className="space-y-5 fade-up">
@@ -227,20 +285,29 @@ export default function Overview() {
 
         {/* Charts column */}
         <div className="lg:col-span-2 flex flex-col gap-4">
-          <SectionCard title="Weekly Hours" subtitle="Current month">
+          <SectionCard
+            title="Daily Hours"
+            subtitle="Last 14 days"
+            action={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: live ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
+                <MdSignalWifi4Bar size={13} style={{ opacity: live ? 1 : 0.4 }} />
+                {live ? 'Live' : 'Connecting…'}
+              </div>
+            }
+          >
             {loading ? (
               <div className="skeleton h-28 rounded" />
-            ) : weeklyData.length === 0 ? (
+            ) : dailyData.length === 0 ? (
               <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
                 <p className="text-sm">No hours logged yet</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={110}>
-                <BarChart data={weeklyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+              <ResponsiveContainer width="100%" height={120}>
+                <BarChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                   <Tooltip content={customTooltip} cursor={{ fill: 'var(--bg)' }} />
-                  <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={40} />
+                  <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 </BarChart>
               </ResponsiveContainer>
             )}
@@ -254,13 +321,23 @@ export default function Overview() {
                 <p className="text-sm">No attendance data</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={110}>
+              <ResponsiveContainer width="100%" height={130}>
                 <PieChart>
-                  <Pie data={donutData} cx="50%" cy="50%" innerRadius={28} outerRadius={44} dataKey="value" paddingAngle={3}>
+                  <Pie
+                    data={donutData}
+                    cx="50%"
+                    cy="45%"
+                    innerRadius={32}
+                    outerRadius={50}
+                    dataKey="value"
+                    paddingAngle={3}
+                    labelLine={false}
+                    label={donutLabel}
+                  >
                     {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
                   </Pie>
                   <Tooltip formatter={(v, n) => [v, n]} />
-                  <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11 }} />
+                  <Legend content={donutLegend} />
                 </PieChart>
               </ResponsiveContainer>
             )}

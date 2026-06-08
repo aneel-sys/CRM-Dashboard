@@ -7,6 +7,42 @@ const { requireAuth } = require('../middleware/auth');
 let cache = { data: null, ts: 0 };
 const CACHE_TTL = 30 * 1000;
 
+// SSE clients set
+const sseClients = new Set();
+function pushToClients(payload) {
+  const msg = `data: ${JSON.stringify(payload)}\n\n`;
+  sseClients.forEach(send => send(msg));
+}
+
+// SSE endpoint — streams overview updates in real-time
+router.get('/stream', (req, res) => {
+  if (!req.session?.user) {
+    res.status(401).end();
+    return;
+  }
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const send = (msg) => res.write(msg);
+  sseClients.add(send);
+
+  // Send current cache immediately if fresh
+  if (cache.data) {
+    res.write(`data: ${JSON.stringify({ success: true, ...cache.data })}\n\n`);
+  }
+
+  // Heartbeat every 25s to keep connection alive
+  const hb = setInterval(() => res.write(': ping\n\n'), 25_000);
+
+  req.on('close', () => {
+    sseClients.delete(send);
+    clearInterval(hb);
+  });
+});
+
 // GET /api/overview/today
 router.get('/today', requireAuth, async (req, res) => {
   try {
@@ -200,27 +236,65 @@ router.get('/today', requireAuth, async (req, res) => {
       } catch { }
     }
 
-    // Weekly hours
-    let weeklyHours = [];
+    // Daily hours — last 14 days
+    let dailyHours = [];
     try {
       const [rows] = await pool.query(
-        `SELECT CEIL(DAY(created_at) / 7) as week, COALESCE(SUM(total_hours), 0) as hours
+        `SELECT DATE(created_at) as date, COALESCE(SUM(total_hours), 0) as hours
          FROM ${tbl('project_time_logs')}
-         WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
-         GROUP BY week ORDER BY week`
+         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+           AND created_at <= NOW()
+         GROUP BY DATE(created_at)
+         ORDER BY date ASC`
       );
-      weeklyHours = rows;
+      dailyHours = rows;
     } catch {
       try {
         const [rows] = await pool.query(
-          `SELECT CEIL(DAY(created_at) / 7) as week, COALESCE(SUM(total_hours), 0) as hours
+          `SELECT DATE(created_at) as date, COALESCE(SUM(total_hours), 0) as hours
            FROM ${tbl('timelogs')}
-           WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())
-           GROUP BY week ORDER BY week`
+           WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+             AND created_at <= NOW()
+           GROUP BY DATE(created_at)
+           ORDER BY date ASC`
         );
-        weeklyHours = rows;
+        dailyHours = rows;
       } catch { }
     }
+
+    // Daily employee count — how many distinct employees logged hours each day
+    let dailyEmployees = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT DATE(created_at) as date, COUNT(DISTINCT user_id) as employees
+         FROM ${tbl('project_time_logs')}
+         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+           AND created_at <= NOW()
+         GROUP BY DATE(created_at)
+         ORDER BY date ASC`
+      );
+      dailyEmployees = rows;
+    } catch {
+      try {
+        const [rows] = await pool.query(
+          `SELECT DATE(created_at) as date, COUNT(DISTINCT user_id) as employees
+           FROM ${tbl('timelogs')}
+           WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+             AND created_at <= NOW()
+           GROUP BY DATE(created_at)
+           ORDER BY date ASC`
+        );
+        dailyEmployees = rows;
+      } catch { }
+    }
+
+    // Merge employees into dailyHours
+    const empMap = {};
+    dailyEmployees.forEach(r => { empMap[r.date instanceof Date ? r.date.toISOString().slice(0,10) : String(r.date).slice(0,10)] = Number(r.employees); });
+    dailyHours = dailyHours.map(r => {
+      const ds = r.date instanceof Date ? r.date.toISOString().slice(0,10) : String(r.date).slice(0,10);
+      return { date: ds, hours: parseFloat(r.hours) || 0, employees: empMap[ds] || 0 };
+    });
 
     const data = {
       date: today,
@@ -232,7 +306,7 @@ router.get('/today', requireAuth, async (req, res) => {
       },
       lateArrivals,
       topWorkers,
-      weeklyHours,
+      dailyHours,
       attendanceBreakdown: {
         present: present - on_leave,
         onLeave: on_leave,
@@ -243,6 +317,8 @@ router.get('/today', requireAuth, async (req, res) => {
     };
 
     cache = { data, ts: Date.now() };
+    // Push fresh data to any connected SSE clients
+    pushToClients({ success: true, ...data });
     res.json({ success: true, ...data });
   } catch (err) {
     console.error('Overview error:', err.message);
