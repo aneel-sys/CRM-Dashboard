@@ -65,9 +65,12 @@ router.get('/', requireAuth, async (req, res) => {
     })();
     rows.forEach(r => {
       if (r.clock_in_time && r.shift_start_time) {
-        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const clockInIST = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        const clockMins = clockInIST.getUTCHours() * 60 + clockInIST.getUTCMinutes();
+        const ss = new Date(r.shift_start_time);
+        const shiftMins = ss.getUTCHours() * 60 + ss.getUTCMinutes();
         const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
-        r.delay_minutes = Math.max(0, diffMins - lmDur);
+        r.delay_minutes = Math.max(0, clockMins - shiftMins - lmDur);
       } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
         r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
@@ -114,9 +117,12 @@ router.get('/export', requireAuth, async (req, res) => {
     })();
     rows.forEach(r => {
       if (r.clock_in_time && r.shift_start_time) {
-        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const clockInIST = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        const clockMins = clockInIST.getUTCHours() * 60 + clockInIST.getUTCMinutes();
+        const ss = new Date(r.shift_start_time);
+        const shiftMins = ss.getUTCHours() * 60 + ss.getUTCMinutes();
         const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
-        r.delay_minutes = Math.max(0, diffMins - lmDur);
+        r.delay_minutes = Math.max(0, clockMins - shiftMins - lmDur);
       } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
         r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThr);

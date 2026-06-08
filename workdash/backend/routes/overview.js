@@ -155,9 +155,12 @@ router.get('/today', requireAuth, async (req, res) => {
     })();
     for (const row of lateArrivals) {
       if (row.clock_in_time && row.shift_start_time) {
-        const diffMins = Math.round((new Date(row.clock_in_time) - new Date(row.shift_start_time)) / 60000);
+        const clockInIST = new Date(new Date(row.clock_in_time).getTime() + IST_MS);
+        const clockMins = clockInIST.getUTCHours() * 60 + clockInIST.getUTCMinutes();
+        const ss = new Date(row.shift_start_time);
+        const shiftMins = ss.getUTCHours() * 60 + ss.getUTCMinutes();
         const lmDur = row.shift_late_mark != null ? row.shift_late_mark : lateMarkDuration;
-        row.delay_minutes = Math.max(0, diffMins - lmDur);
+        row.delay_minutes = Math.max(0, clockMins - shiftMins - lmDur);
       } else if (row.clock_in_time) {
         const local = new Date(new Date(row.clock_in_time).getTime() + IST_MS);
         row.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
