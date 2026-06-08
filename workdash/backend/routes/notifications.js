@@ -20,22 +20,34 @@ router.get('/', requireAuth, async (req, res) => {
 
     // 1. Late arrivals — use Worksuite's shift-aware late column
     const [lateRows] = await pool.query(
-      `SELECT u.name, a.clock_in_time
+      `SELECT u.name, a.clock_in_time,
+              ess.shift_start_time,
+              es.late_mark_duration AS shift_late_mark
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
+       LEFT JOIN ${tbl('employee_shift_schedules')} ess
+         ON ess.user_id = a.user_id AND ess.date = DATE(a.clock_in_time)
+       LEFT JOIN ${tbl('employee_shifts')} es ON es.id = ess.employee_shift_id
        WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
        ORDER BY a.clock_in_time ASC
        LIMIT 10`,
       [today]
     );
 
-    // Compute delay in Node.js using IST offset
-    const [oh, om] = settings.officeStart.split(':').map(Number);
-    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    // Delay = (clock_in - shift_start) in minutes - late_mark_duration
+    // Both datetimes are UTC so no IST conversion needed
+    const fallbackThresh = (() => {
+      const [oh, om] = settings.officeStart.split(':').map(Number);
+      return oh * 60 + om + settings.lateMarkDuration;
+    })();
     lateRows.forEach(r => {
-      if (r.clock_in_time) {
+      if (r.clock_in_time && r.shift_start_time) {
+        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
+        r.delay = Math.max(0, diffMins - lmDur);
+      } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
-        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
       } else {
         r.delay = 0;
       }
@@ -168,23 +180,33 @@ router.get('/expanded', requireAuth, async (_req, res) => {
     const holidays = await getHolidays(year, month);
     const workingDays = getWorkingDays(year, month, holidays);
 
-    // Late arrivals — use Worksuite's shift-aware late column
+    // Late arrivals — use Worksuite's shift-aware late column + per-shift start time
     const [lateRows] = await pool.query(
-      `SELECT u.id, u.name, a.clock_in_time
+      `SELECT u.id, u.name, a.clock_in_time,
+              ess.shift_start_time,
+              es.late_mark_duration AS shift_late_mark
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
+       LEFT JOIN ${tbl('employee_shift_schedules')} ess
+         ON ess.user_id = a.user_id AND ess.date = DATE(a.clock_in_time)
+       LEFT JOIN ${tbl('employee_shifts')} es ON es.id = ess.employee_shift_id
        WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
        ORDER BY a.clock_in_time ASC`,
       [today]
     );
 
-    // Compute IST delay per row
-    const [oh, om] = settings.officeStart.split(':').map(Number);
-    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    const fallbackThresh = (() => {
+      const [oh, om] = settings.officeStart.split(':').map(Number);
+      return oh * 60 + om + settings.lateMarkDuration;
+    })();
     lateRows.forEach(r => {
-      if (r.clock_in_time) {
+      if (r.clock_in_time && r.shift_start_time) {
+        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
+        r.delay = Math.max(0, diffMins - lmDur);
+      } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
-        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
       } else {
         r.delay = 0;
       }

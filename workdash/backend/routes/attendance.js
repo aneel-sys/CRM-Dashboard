@@ -6,7 +6,7 @@ const { requireAuth } = require('../middleware/auth');
 
 
 
-function buildAttendanceQuery(date, departmentId, { officeStart, lateMarkDuration }) {
+function buildAttendanceQuery(date, departmentId) {
   const deptFilter = departmentId ? 'AND ed.department_id = ?' : '';
   const sql = `
     SELECT
@@ -26,19 +26,23 @@ function buildAttendanceQuery(date, departmentId, { officeStart, lateMarkDuratio
       ROUND(
         TIMESTAMPDIFF(MINUTE, a.clock_in_time, COALESCE(a.clock_out_time, NOW())) / 60,
         2
-      ) AS hours_worked
+      ) AS hours_worked,
+      ess.shift_start_time,
+      es.late_mark_duration AS shift_late_mark
     FROM ${tbl('users')} u
     LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
     LEFT JOIN ${tbl('attendances')} a
       ON a.user_id = u.id AND DATE(a.clock_in_time) = ?
     LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
     LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
+    LEFT JOIN ${tbl('employee_shift_schedules')} ess ON ess.user_id = u.id AND ess.date = ?
+    LEFT JOIN ${tbl('employee_shifts')} es ON es.id = ess.employee_shift_id
     WHERE u.status = 'active'
     ${deptFilter}
     ORDER BY u.name ASC
   `;
 
-  const finalParams = [date];
+  const finalParams = [date, date];
   if (departmentId) finalParams.push(departmentId);
   return { sql, finalParams };
 }
@@ -51,17 +55,22 @@ router.get('/', requireAuth, async (req, res) => {
     const statusFilter = req.query.status || null;
     const settings = await getOfficeSettings();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId);
     let [rows] = await pool.query(sql, finalParams);
 
-    // Compute delay in Node.js: DB stores UTC, officeStart is IST (UTC+5:30)
     const IST_MS = 5.5 * 60 * 60 * 1000;
-    const [oh, om] = settings.officeStart.split(':').map(Number);
-    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    const fallbackThresh = (() => {
+      const [oh, om] = settings.officeStart.split(':').map(Number);
+      return oh * 60 + om + settings.lateMarkDuration;
+    })();
     rows.forEach(r => {
-      if (r.clock_in_time) {
+      if (r.clock_in_time && r.shift_start_time) {
+        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
+        r.delay_minutes = Math.max(0, diffMins - lmDur);
+      } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
-        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
       } else {
         r.delay_minutes = 0;
       }
@@ -95,16 +104,22 @@ router.get('/export', requireAuth, async (req, res) => {
     const departmentId = req.query.department_id || null;
     const settings = await getOfficeSettings();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId);
     let [rows] = await pool.query(sql, finalParams);
 
     const IST_MS = 5.5 * 60 * 60 * 1000;
-    const [oh2, om2] = settings.officeStart.split(':').map(Number);
-    const thr = oh2 * 60 + om2 + settings.lateMarkDuration;
+    const fallbackThr = (() => {
+      const [oh2, om2] = settings.officeStart.split(':').map(Number);
+      return oh2 * 60 + om2 + settings.lateMarkDuration;
+    })();
     rows.forEach(r => {
-      if (r.clock_in_time) {
+      if (r.clock_in_time && r.shift_start_time) {
+        const diffMins = Math.round((new Date(r.clock_in_time) - new Date(r.shift_start_time)) / 60000);
+        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
+        r.delay_minutes = Math.max(0, diffMins - lmDur);
+      } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
-        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thr);
+        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThr);
       } else { r.delay_minutes = 0; }
     });
 

@@ -127,31 +127,40 @@ router.get('/today', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status NOT IN ('completed', 'canceled')`
     );
 
-    // Late arrivals — top 5, delay computed in JS (DB stores UTC, officeStart is IST)
+    // Late arrivals — top 5, delay from per-employee shift schedule (Worksuite data)
+    const IST_MS = 5.5 * 60 * 60 * 1000;
     const [lateArrivals] = await pool.query(
       `SELECT u.id, u.name, u.email,
               d.team_name as department,
               ds.name as designation,
-              a.clock_in_time, a.clock_out_time
+              a.clock_in_time, a.clock_out_time,
+              ess.shift_start_time,
+              es.late_mark_duration AS shift_late_mark
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
        LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
        LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
        LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
+       LEFT JOIN ${tbl('employee_shift_schedules')} ess
+         ON ess.user_id = a.user_id AND ess.date = DATE(a.clock_in_time)
+       LEFT JOIN ${tbl('employee_shifts')} es ON es.id = ess.employee_shift_id
        WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
        ORDER BY a.clock_in_time ASC
        LIMIT 5`,
       [today]
     );
-    // Compute delay in Node.js: DB clock_in_time is UTC, officeStart is IST (UTC+5:30)
-    const IST_MS = 5.5 * 60 * 60 * 1000;
-    const [oh, om] = officeStart.split(':').map(Number);
-    const thresholdMins = oh * 60 + om + lateMarkDuration;
+    const fallbackThresh = (() => {
+      const [oh, om] = officeStart.split(':').map(Number);
+      return oh * 60 + om + lateMarkDuration;
+    })();
     for (const row of lateArrivals) {
-      if (row.clock_in_time) {
+      if (row.clock_in_time && row.shift_start_time) {
+        const diffMins = Math.round((new Date(row.clock_in_time) - new Date(row.shift_start_time)) / 60000);
+        const lmDur = row.shift_late_mark != null ? row.shift_late_mark : lateMarkDuration;
+        row.delay_minutes = Math.max(0, diffMins - lmDur);
+      } else if (row.clock_in_time) {
         const local = new Date(new Date(row.clock_in_time).getTime() + IST_MS);
-        const clockMins = local.getUTCHours() * 60 + local.getUTCMinutes();
-        row.delay_minutes = Math.max(0, clockMins - thresholdMins);
+        row.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
       } else {
         row.delay_minutes = 0;
       }
