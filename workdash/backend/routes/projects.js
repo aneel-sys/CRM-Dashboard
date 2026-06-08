@@ -93,9 +93,44 @@ router.get('/', requireAuth, async (req, res) => {
       }
     }
 
+    // Last time log date per active project (for stale detection)
+    let lastLogMap = {};
+    const activeIds = projects
+      .filter(p => !['completed', 'canceled', 'cancelled'].includes((p.status || '').toLowerCase()))
+      .map(p => p.id);
+    if (activeIds.length) {
+      try {
+        const [rows] = await pool.query(
+          `SELECT project_id, MAX(created_at) as last_log
+           FROM ${tbl('project_time_logs')} WHERE project_id IN (?)
+           GROUP BY project_id`, [activeIds]
+        );
+        rows.forEach(r => { lastLogMap[r.project_id] = r.last_log; });
+      } catch {
+        try {
+          const [rows] = await pool.query(
+            `SELECT project_id, MAX(created_at) as last_log
+             FROM ${tbl('timelogs')} WHERE project_id IN (?)
+             GROUP BY project_id`, [activeIds]
+          );
+          rows.forEach(r => { lastLogMap[r.project_id] = r.last_log; });
+        } catch { }
+      }
+    }
+
+    const STALE_DAYS = 14;
+    const now = Date.now();
+
     const result = projects.map(p => {
       const total = taskMap[p.id] || 0;
       const done = doneMap[p.id] || 0;
+      const isActive = !['completed', 'canceled', 'cancelled'].includes((p.status || '').toLowerCase());
+      const lastLog = lastLogMap[p.id];
+      const daysSinceLast = lastLog
+        ? (now - new Date(lastLog).getTime()) / 86400000
+        : (now - new Date(p.created_at).getTime()) / 86400000;
+      const is_stale = isActive && daysSinceLast > STALE_DAYS;
+
       return {
         ...p,
         client_name: clientMap[p.client_id] || null,
@@ -104,6 +139,7 @@ router.get('/', requireAuth, async (req, res) => {
         completed_tasks: done,
         hours_logged: hoursMap[p.id] || 0,
         completion_pct: total ? Math.round((done / total) * 100) : 0,
+        is_stale,
       };
     });
 

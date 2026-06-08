@@ -96,6 +96,19 @@ export default function Team() {
       },
     },
     {
+      key: 'avg_clock_in', label: 'Avg Clock-In',
+      render: (v) => {
+        if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+        const [h, m] = v.split(':').map(Number);
+        const isLate = h > 9 || (h === 9 && m > 0);
+        return (
+          <span className="font-semibold text-sm" style={{ color: isLate ? 'var(--warning)' : 'var(--primary)' }}>
+            {v}
+          </span>
+        );
+      },
+    },
+    {
       key: 'month_hours', label: 'Month Hours',
       render: v => <span className="font-bold" style={{ color: 'var(--info)' }}>{parseFloat(v || 0).toFixed(1)}h</span>,
     },

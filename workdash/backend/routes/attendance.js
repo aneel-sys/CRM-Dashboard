@@ -107,6 +107,45 @@ router.get('/export', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/attendance/trend?days=30
+router.get('/trend', requireAuth, async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days) || 30, 60);
+    const officeStart = await getOfficeStartTime();
+
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
+    );
+
+    const [rows] = await pool.query(
+      `SELECT
+         DATE(clock_in_time) as date,
+         COUNT(DISTINCT user_id) as present,
+         COUNT(DISTINCT CASE WHEN TIME(clock_in_time) > ? THEN user_id END) as late
+       FROM ${tbl('attendances')}
+       WHERE DATE(clock_in_time) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         AND DATE(clock_in_time) <= CURDATE()
+       GROUP BY DATE(clock_in_time)
+       ORDER BY date ASC`,
+      [officeStart, days - 1]
+    );
+
+    const trend = rows.map(r => ({
+      date: r.date,
+      label: new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
+      present: Number(r.present),
+      late: Number(r.late),
+      onTime: Math.max(0, Number(r.present) - Number(r.late)),
+      absent: Math.max(0, total - Number(r.present)),
+    }));
+
+    res.json({ success: true, trend, total });
+  } catch (err) {
+    console.error('Attendance trend error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/attendance/departments
 router.get('/departments', requireAuth, async (req, res) => {
   try {

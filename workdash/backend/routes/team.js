@@ -78,6 +78,21 @@ router.get('/', requireAuth, async (req, res) => {
       } catch {}
     }
 
+    // Avg clock-in time per user this month
+    let avgClockInMap = {};
+    try {
+      const [rows] = await pool.query(
+        `SELECT user_id,
+                TIME_FORMAT(SEC_TO_TIME(AVG(TIME_TO_SEC(TIME(clock_in_time)))), '%H:%i') as avg_clock_in
+         FROM ${tbl('attendances')}
+         WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
+           AND clock_in_time IS NOT NULL
+         GROUP BY user_id`,
+        [month, year]
+      );
+      rows.forEach(r => { avgClockInMap[r.user_id] = r.avg_clock_in; });
+    } catch { }
+
     // Active project count per user
     let projectMap = {};
     try {
@@ -97,6 +112,7 @@ router.get('/', requireAuth, async (req, res) => {
       ...e,
       month_hours: hoursMap[e.id] || 0,
       active_projects: projectMap[e.id] || 0,
+      avg_clock_in: avgClockInMap[e.id] || null,
       attendance_pct: workingDays
         ? Math.round((e.present_days / workingDays) * 100)
         : 0,

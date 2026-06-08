@@ -38,7 +38,18 @@ function ProjectCard({ project, onClick }) {
             <p className="text-xs mt-0.5 truncate" style={{ color: 'var(--text-muted)' }}>{project.client_name}</p>
           )}
         </div>
-        <StatusPill status={project.status} />
+        <div className="flex items-center gap-1.5 shrink-0">
+          {project.is_stale && (
+            <span style={{
+              fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 999,
+              background: '#FEF3C7', color: '#D97706', border: '1px solid #FDE68A',
+              whiteSpace: 'nowrap',
+            }}>
+              Stale
+            </span>
+          )}
+          <StatusPill status={project.status} />
+        </div>
       </div>
 
       {/* Meta row */}

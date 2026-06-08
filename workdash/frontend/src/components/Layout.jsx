@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import { useSettings } from '../context/SettingsContext';
 
 const PAGE_TITLES = {
   '/':               'Overview Dashboard',
@@ -21,6 +22,7 @@ const REFRESH_MS = 60_000;
 
 export default function Layout() {
   const location = useLocation();
+  const { appName } = useSettings();
   const [collapsed, setCollapsed] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [refreshKey, setRefreshKey] = useState(0);
@@ -36,7 +38,11 @@ export default function Layout() {
   }, [doRefresh]);
 
   const sw = collapsed ? SIDEBAR_C : SIDEBAR_W;
-  const title = PAGE_TITLES[location.pathname] || 'WorkDash';
+  const title = PAGE_TITLES[location.pathname] || appName;
+
+  useEffect(() => {
+    document.title = title !== appName ? `${title} | ${appName}` : appName;
+  }, [title, appName]);
 
   return (
     /* Outer shell — full viewport, background from CSS var */

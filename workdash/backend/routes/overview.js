@@ -4,9 +4,8 @@ const { pool, tbl } = require('../db/connection');
 const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
-// Simple in-memory cache
 let cache = { data: null, ts: 0 };
-const CACHE_TTL = 30 * 1000; // 30 seconds
+const CACHE_TTL = 30 * 1000;
 
 // GET /api/overview/today
 router.get('/today', requireAuth, async (req, res) => {
@@ -24,24 +23,88 @@ router.get('/today', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
     );
 
-    // Present today (have a clock_in)
+    // Present today
     const [[{ present }]] = await pool.query(
       `SELECT COUNT(DISTINCT user_id) as present FROM ${tbl('attendances')}
        WHERE DATE(clock_in_time) = ?`,
       [today]
     );
 
-    // Late today (clock_in after office start)
+    // Late today
     const [[{ late }]] = await pool.query(
       `SELECT COUNT(*) as late FROM ${tbl('attendances')}
-       WHERE DATE(clock_in_time) = ?
-         AND TIME(clock_in_time) > ?`,
+       WHERE DATE(clock_in_time) = ? AND TIME(clock_in_time) > ?`,
       [today, officeStart]
     );
 
     const absent = total - present;
 
-    // Total hours this month (from project_time_logs or timelogs)
+    // On leave today
+    let on_leave = 0;
+    try {
+      const [[row]] = await pool.query(
+        `SELECT COUNT(*) as on_leave FROM ${tbl('leaves')}
+         WHERE DATE(leave_date) = ? AND status = 'approved'`,
+        [today]
+      );
+      on_leave = row.on_leave || 0;
+    } catch { on_leave = 0; }
+
+    // Currently working: clocked in today, no clock-out yet
+    let currentlyWorking = { count: 0, list: [] };
+    try {
+      const [[{ count }]] = await pool.query(
+        `SELECT COUNT(DISTINCT a.user_id) as count
+         FROM ${tbl('attendances')} a
+         WHERE DATE(a.clock_in_time) = ?
+           AND a.clock_in_time IS NOT NULL
+           AND a.clock_out_time IS NULL`,
+        [today]
+      );
+      const [list] = await pool.query(
+        `SELECT u.id, u.name, a.clock_in_time
+         FROM ${tbl('attendances')} a
+         JOIN ${tbl('users')} u ON u.id = a.user_id
+         WHERE DATE(a.clock_in_time) = ?
+           AND a.clock_in_time IS NOT NULL
+           AND a.clock_out_time IS NULL
+         ORDER BY a.clock_in_time ASC
+         LIMIT 8`,
+        [today]
+      );
+      currentlyWorking = { count, list };
+    } catch { }
+
+    // Department breakdown: present/late/absent per team
+    let deptBreakdown = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT
+           d.team_name AS department,
+           COUNT(DISTINCT u.id) AS total,
+           COUNT(DISTINCT CASE WHEN a.clock_in_time IS NOT NULL THEN u.id END) AS present,
+           COUNT(DISTINCT CASE WHEN a.clock_in_time IS NOT NULL AND TIME(a.clock_in_time) > ? THEN u.id END) AS late
+         FROM ${tbl('users')} u
+         LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+         LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+         LEFT JOIN ${tbl('attendances')} a
+           ON a.user_id = u.id AND DATE(a.clock_in_time) = ?
+         WHERE u.status = 'active' AND d.id IS NOT NULL
+         GROUP BY d.id, d.team_name
+         ORDER BY present DESC
+         LIMIT 8`,
+        [officeStart, today]
+      );
+      deptBreakdown = rows.map(r => ({
+        department: r.department,
+        total: r.total,
+        present: r.present,
+        late: r.late,
+        absent: r.total - r.present,
+      }));
+    } catch { }
+
+    // Hours this month
     let monthHours = 0;
     try {
       const [[row]] = await pool.query(
@@ -56,7 +119,7 @@ router.get('/today', requireAuth, async (req, res) => {
            WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
         );
         monthHours = parseFloat(row.hours) || 0;
-      } catch { monthHours = 0; }
+      } catch { }
     }
 
     // Active projects
@@ -64,7 +127,7 @@ router.get('/today', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status NOT IN ('completed', 'canceled')`
     );
 
-    // Late arrivals detail for today
+    // Late arrivals detail
     const [lateArrivals] = await pool.query(
       `SELECT u.id, u.name, u.email,
               d.team_name as department,
@@ -76,14 +139,13 @@ router.get('/today', requireAuth, async (req, res) => {
        LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
        LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
        LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
-       WHERE DATE(a.clock_in_time) = ?
-         AND TIME(a.clock_in_time) > ?
+       WHERE DATE(a.clock_in_time) = ? AND TIME(a.clock_in_time) > ?
        ORDER BY a.clock_in_time ASC
        LIMIT 20`,
       [officeStart, today, officeStart]
     );
 
-    // Top 5 workers this month by hours
+    // Top 5 workers this month
     let topWorkers = [];
     try {
       const [rows] = await pool.query(
@@ -112,10 +174,10 @@ router.get('/today', requireAuth, async (req, res) => {
            LIMIT 5`
         );
         topWorkers = rows;
-      } catch { topWorkers = []; }
+      } catch { }
     }
 
-    // Weekly hours breakdown (current month, 4 weeks)
+    // Weekly hours
     let weeklyHours = [];
     try {
       const [rows] = await pool.query(
@@ -134,19 +196,17 @@ router.get('/today', requireAuth, async (req, res) => {
            GROUP BY week ORDER BY week`
         );
         weeklyHours = rows;
-      } catch { weeklyHours = []; }
+      } catch { }
     }
-
-    // Attendance breakdown for donut
-    const [[{ on_leave }]] = await pool.query(
-      `SELECT COUNT(*) as on_leave FROM ${tbl('leaves')}
-       WHERE DATE(leave_date) = ? AND status = 'approved'`,
-      [today]
-    ).catch(() => [[{ on_leave: 0 }]]);
 
     const data = {
       date: today,
-      stats: { total, present, late, absent, monthHours: monthHours.toFixed(1), activeProjects },
+      stats: {
+        total, present, late, absent,
+        onLeave: on_leave,
+        monthHours: monthHours.toFixed(1),
+        activeProjects,
+      },
       lateArrivals,
       topWorkers,
       weeklyHours,
@@ -155,6 +215,8 @@ router.get('/today', requireAuth, async (req, res) => {
         onLeave: on_leave,
         absent,
       },
+      currentlyWorking,
+      deptBreakdown,
     };
 
     cache = { data, ts: Date.now() };
