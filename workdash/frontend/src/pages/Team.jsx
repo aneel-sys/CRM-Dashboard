@@ -133,7 +133,7 @@ export default function Team() {
       key: 'last_seen', label: 'Last Seen',
       render: (v, row) => {
         if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-        const t = new Date(v).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        const t = new Date(v).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
         const isLate = row.today_status === 'Late';
         return (
           <div className="flex items-center gap-1.5">

@@ -17,16 +17,7 @@ function buildAttendanceQuery(date, departmentId, { officeStart, lateMarkDuratio
       ds.name      AS designation,
       a.clock_in_time,
       a.clock_out_time,
-      GREATEST(0,
-        TIMESTAMPDIFF(MINUTE,
-          CASE
-            WHEN a.shift_start_time IS NOT NULL
-              THEN TIMESTAMPADD(MINUTE, ?, a.shift_start_time)
-            ELSE TIMESTAMPADD(MINUTE, ?, CONCAT(?, ' ', ?))
-          END,
-          a.clock_in_time
-        )
-      ) AS delay_minutes,
+      NULL AS delay_minutes,
       CASE
         WHEN a.clock_in_time IS NULL THEN 'Absent'
         WHEN a.late = 'yes' THEN 'Late'
@@ -47,8 +38,7 @@ function buildAttendanceQuery(date, departmentId, { officeStart, lateMarkDuratio
     ORDER BY u.name ASC
   `;
 
-  // delay params: lateMarkDuration×2, date, officeStart; then date for JOIN, optional deptId
-  const finalParams = [lateMarkDuration, lateMarkDuration, date, officeStart, date];
+  const finalParams = [date];
   if (departmentId) finalParams.push(departmentId);
   return { sql, finalParams };
 }
@@ -63,6 +53,19 @@ router.get('/', requireAuth, async (req, res) => {
 
     const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
     let [rows] = await pool.query(sql, finalParams);
+
+    // Compute delay in Node.js: DB stores UTC, officeStart is IST (UTC+5:30)
+    const IST_MS = 5.5 * 60 * 60 * 1000;
+    const [oh, om] = settings.officeStart.split(':').map(Number);
+    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    rows.forEach(r => {
+      if (r.clock_in_time) {
+        const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+      } else {
+        r.delay_minutes = 0;
+      }
+    });
 
     if (statusFilter && statusFilter !== 'all') {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
@@ -93,7 +96,17 @@ router.get('/export', requireAuth, async (req, res) => {
     const settings = await getOfficeSettings();
 
     const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
-    const [rows] = await pool.query(sql, finalParams);
+    let [rows] = await pool.query(sql, finalParams);
+
+    const IST_MS = 5.5 * 60 * 60 * 1000;
+    const [oh2, om2] = settings.officeStart.split(':').map(Number);
+    const thr = oh2 * 60 + om2 + settings.lateMarkDuration;
+    rows.forEach(r => {
+      if (r.clock_in_time) {
+        const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thr);
+      } else { r.delay_minutes = 0; }
+    });
 
     const headers = ['Name', 'Department', 'Designation', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
     const csvRows = rows.map(r => [

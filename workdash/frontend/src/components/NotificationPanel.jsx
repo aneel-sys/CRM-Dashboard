@@ -143,7 +143,7 @@ export default function NotificationPanel() {
               </p>
               {lastFetched && (
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                  Updated {lastFetched.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  Updated {lastFetched.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
                 </p>
               )}
             </div>

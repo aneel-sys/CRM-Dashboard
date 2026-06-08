@@ -22,7 +22,7 @@ function StatusPill({ status }) {
 
 function fmt(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(dt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 const trendTooltip = ({ active, payload, label }) => {

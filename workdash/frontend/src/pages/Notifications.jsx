@@ -107,7 +107,7 @@ export default function Notifications() {
       <div className="flex items-center justify-between">
         <div>
           <p className="section-title text-base">Live Alerts</p>
-          <p className="section-sub">Auto-updates every 60s · {new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</p>
+          <p className="section-sub">Auto-updates every 60s · {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
         </div>
         <button onClick={load} className="btn btn-secondary gap-2">
           <MdRefresh size={15} /> Refresh

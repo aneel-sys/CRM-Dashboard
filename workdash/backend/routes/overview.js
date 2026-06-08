@@ -127,22 +127,12 @@ router.get('/today', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status NOT IN ('completed', 'canceled')`
     );
 
-    // Late arrivals detail — filter by Worksuite's own late flag
+    // Late arrivals — top 5, delay computed in JS (DB stores UTC, officeStart is IST)
     const [lateArrivals] = await pool.query(
       `SELECT u.id, u.name, u.email,
               d.team_name as department,
               ds.name as designation,
-              a.clock_in_time, a.clock_out_time,
-              GREATEST(0,
-                TIMESTAMPDIFF(MINUTE,
-                  CASE
-                    WHEN a.shift_start_time IS NOT NULL
-                      THEN TIMESTAMPADD(MINUTE, ?, a.shift_start_time)
-                    ELSE TIMESTAMPADD(MINUTE, ?, CONCAT(DATE(a.clock_in_time), ' ', ?))
-                  END,
-                  a.clock_in_time
-                )
-              ) as delay_minutes
+              a.clock_in_time, a.clock_out_time
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
        LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
@@ -150,9 +140,22 @@ router.get('/today', requireAuth, async (req, res) => {
        LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
        ORDER BY a.clock_in_time ASC
-       LIMIT 20`,
-      [lateMarkDuration, lateMarkDuration, officeStart, today]
+       LIMIT 5`,
+      [today]
     );
+    // Compute delay in Node.js: DB clock_in_time is UTC, officeStart is IST (UTC+5:30)
+    const IST_MS = 5.5 * 60 * 60 * 1000;
+    const [oh, om] = officeStart.split(':').map(Number);
+    const thresholdMins = oh * 60 + om + lateMarkDuration;
+    for (const row of lateArrivals) {
+      if (row.clock_in_time) {
+        const local = new Date(new Date(row.clock_in_time).getTime() + IST_MS);
+        const clockMins = local.getUTCHours() * 60 + local.getUTCMinutes();
+        row.delay_minutes = Math.max(0, clockMins - thresholdMins);
+      } else {
+        row.delay_minutes = 0;
+      }
+    }
 
     // Top 5 workers this month
     let topWorkers = [];

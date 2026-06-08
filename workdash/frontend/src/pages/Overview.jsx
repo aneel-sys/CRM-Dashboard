@@ -15,7 +15,7 @@ const DONUT_COLORS = ['#1D9E75', '#378ADD', '#E24B4A', '#EF9F27'];
 
 function fmt(dt) {
   if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return new Date(dt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 function SectionCard({ title, subtitle, children, action }) {
@@ -156,7 +156,18 @@ export default function Overview() {
         <div className="lg:col-span-3">
           <SectionCard
             title="Late Arrivals Today"
-            subtitle={loading ? '' : `${data?.lateArrivals?.length || 0} employees`}
+            subtitle={loading ? '' : `${stats.late || 0} employees`}
+            action={
+              !loading && (stats.late || 0) > 0 ? (
+                <button
+                  onClick={() => navigate('/attendance?status=Late')}
+                  className="btn btn-ghost text-xs"
+                  style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}
+                >
+                  View All →
+                </button>
+              ) : null
+            }
           >
             {loading ? (
               <div className="space-y-3">
@@ -202,7 +213,11 @@ export default function Overview() {
                       </td>
                       <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
                       <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
-                      <td><span className="pill pill-red">+{row.delay_minutes}m</span></td>
+                      <td>
+                        {row.delay_minutes > 0
+                          ? <span className="pill pill-red">+{row.delay_minutes}m</span>
+                          : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
