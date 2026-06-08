@@ -4,6 +4,7 @@ import {
   MdFolderOpen, MdSchedule, MdPeople, MdNotifications, MdSettings,
 } from 'react-icons/md';
 import { useSettings } from '../context/SettingsContext';
+import { fmtTimeStr } from '../utils/time';
 
 const NAV = [
   {
@@ -37,7 +38,7 @@ const NAV = [
 ];
 
 export default function Sidebar({ collapsed, width }) {
-  const { appName, appSubtitle, logoUrl } = useSettings();
+  const { appName, appSubtitle, logoUrl, officeStart, officeEnd, timeFormat } = useSettings();
 
   return (
     <aside
@@ -153,10 +154,10 @@ export default function Sidebar({ collapsed, width }) {
         ) : (
           <div>
             <p className="text-[11px] font-medium" style={{ color: 'rgba(255,255,255,0.3)' }}>
-              Office hours: 09:00 – 18:00
+              Office: {fmtTimeStr(officeStart, timeFormat)} – {fmtTimeStr(officeEnd, timeFormat)}
             </p>
             <p className="text-[10px] mt-0.5" style={{ color: 'rgba(255,255,255,0.18)' }}>
-              Admin Panel · Read-only DB
+              Read-only · Analytics Dashboard
             </p>
           </div>
         )}

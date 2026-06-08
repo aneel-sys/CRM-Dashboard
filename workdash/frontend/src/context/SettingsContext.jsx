@@ -6,6 +6,8 @@ const DEFAULTS = {
   appSubtitle: 'Analytics Dashboard',
   logoUrl: null,
   timeFormat: '24h',
+  officeStart: '09:00',
+  officeEnd: '18:00',
 };
 
 const SettingsContext = createContext({ ...DEFAULTS, reload: () => {} });
@@ -22,6 +24,8 @@ export function SettingsProvider({ children }) {
           appSubtitle: data.appSubtitle,
           logoUrl: data.logoUrl,
           timeFormat: data.timeFormat || '24h',
+          officeStart: data.officeStart || '09:00',
+          officeEnd: data.officeEnd || '18:00',
         });
       }
     } catch {

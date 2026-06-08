@@ -3,6 +3,7 @@ const router = express.Router();
 const path = require('path');
 const fs = require('fs');
 const multer = require('multer');
+const { getOfficeSettings } = require('../db/officeSettings');
 
 const SETTINGS_FILE = path.join(__dirname, '../data/settings.json');
 const UPLOADS_DIR = path.join(__dirname, '../public/uploads');
@@ -59,8 +60,15 @@ function buildResponse(s) {
 }
 
 // GET /api/settings/public — no auth needed (login page uses this)
-router.get('/public', (req, res) => {
-  res.json(buildResponse(readSettings()));
+router.get('/public', async (req, res) => {
+  const s = readSettings();
+  let officeStart = '09:00', officeEnd = '18:00';
+  try {
+    const o = await getOfficeSettings();
+    officeStart = o.officeStart;
+    officeEnd = o.officeEnd;
+  } catch {}
+  res.json({ ...buildResponse(s), officeStart, officeEnd });
 });
 
 // GET /api/settings — auth required (for settings page initial load)

@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MdAccessTime, MdPersonOff, MdPeople, MdFolderOpen,
-  MdWarning, MdRefresh, MdArrowForward,
+  MdWarning, MdRefresh, MdArrowForward, MdChevronLeft, MdChevronRight,
 } from 'react-icons/md';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
@@ -10,11 +10,7 @@ import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-
-function fmt(t) {
-  if (!t) return '—';
-  return String(t).slice(0, 5);
-}
+const PAGE_SIZE = 8;
 
 function fmtDate(d) {
   if (!d) return '—';
@@ -65,10 +61,46 @@ function Row({ children, onClick }) {
   );
 }
 
-function EmptyState({ message }) {
+function Paginator({ page, total, onChange }) {
+  const pages = Math.ceil(total / PAGE_SIZE);
+  if (pages <= 1) return null;
+  const start = (page - 1) * PAGE_SIZE + 1;
+  const end = Math.min(page * PAGE_SIZE, total);
   return (
-    <div className="py-10 text-center" style={{ color: 'var(--text-muted)' }}>
-      <p className="text-sm font-medium">{message}</p>
+    <div className="flex items-center justify-between px-5 py-2.5" style={{ borderTop: '1px solid var(--border)', background: 'var(--bg)' }}>
+      <span className="text-xs" style={{ color: 'var(--text-muted)' }}>{start}–{end} of {total}</span>
+      <div className="flex items-center gap-1">
+        <button
+          disabled={page === 1}
+          onClick={() => onChange(page - 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: page === 1 ? 'not-allowed' : 'pointer', opacity: page === 1 ? 0.35 : 1 }}
+        >
+          <MdChevronLeft size={16} style={{ color: 'var(--text-secondary)' }} />
+        </button>
+        {Array.from({ length: pages }, (_, i) => i + 1).map(p => (
+          <button
+            key={p}
+            onClick={() => onChange(p)}
+            style={{
+              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+              minWidth: 28, height: 28, borderRadius: 6, fontSize: 12, cursor: 'pointer',
+              border: p === page ? '1px solid var(--primary)' : '1px solid var(--border)',
+              background: p === page ? 'var(--primary)' : 'var(--bg)',
+              color: p === page ? '#fff' : 'var(--text-secondary)',
+              fontWeight: p === page ? 700 : 400,
+            }}
+          >
+            {p}
+          </button>
+        ))}
+        <button
+          disabled={page === pages}
+          onClick={() => onChange(page + 1)}
+          style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: page === pages ? 'not-allowed' : 'pointer', opacity: page === pages ? 0.35 : 1 }}
+        >
+          <MdChevronRight size={16} style={{ color: 'var(--text-secondary)' }} />
+        </button>
+      </div>
     </div>
   );
 }
@@ -80,9 +112,17 @@ export default function Notifications() {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [lateP, setLateP] = useState(1);
+  const [absentP, setAbsentP] = useState(1);
+  const [lowAttP, setLowAttP] = useState(1);
+  const [deadlinesP, setDeadlinesP] = useState(1);
+  const [overdueP, setOverdueP] = useState(1);
+
+  const paginate = (arr, page) => (arr || []).slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const load = () => {
     setLoading(true);
+    setLateP(1); setAbsentP(1); setLowAttP(1); setDeadlinesP(1); setOverdueP(1);
     api.get('/notifications/expanded')
       .then(res => setData(res.data))
       .catch(err => toast(err.response?.data?.message || 'Failed to load notifications'))
@@ -130,15 +170,16 @@ export default function Notifications() {
             </button>
           }
         >
-          {data.lateToday.map(r => (
+          {paginate(data.lateToday, lateP).map(r => (
             <Row key={r.id} onClick={() => navigate(`/person?id=${r.id}`)}>
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{r.name}</p>
-                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Clocked in at {fmt(r.clock_in)}</p>
+                <p className="text-xs" style={{ color: 'var(--text-muted)' }}>Clocked in at {fmtTime(r.clock_in_time, timeFormat)}</p>
               </div>
               <span className="pill pill-amber">+{r.delay}m late</span>
             </Row>
           ))}
+          <Paginator page={lateP} total={data.lateToday.length} onChange={setLateP} />
         </SectionCard>
       )}
 
@@ -155,20 +196,13 @@ export default function Notifications() {
             </button>
           }
         >
-          {data.absentToday.slice(0, 15).map((r, i) => (
+          {paginate(data.absentToday, absentP).map((r, i) => (
             <Row key={r.id ?? i} onClick={() => navigate(`/person?id=${r.id}`)}>
               <p className="text-sm font-medium" style={{ color: 'var(--text)' }}>{r.name}</p>
               <span className="pill pill-gray">No clock-in</span>
             </Row>
           ))}
-          {data.absentToday.length > 15 && (
-            <div className="px-5 py-3 text-xs" style={{ color: 'var(--text-muted)' }}>
-              +{data.absentToday.length - 15} more —{' '}
-              <span className="text-[var(--primary)] cursor-pointer font-medium" onClick={() => navigate('/attendance?status=Absent')}>
-                see all in Attendance
-              </span>
-            </div>
-          )}
+          <Paginator page={absentP} total={data.absentToday.length} onChange={setAbsentP} />
         </SectionCard>
       )}
 
@@ -185,7 +219,7 @@ export default function Notifications() {
             </button>
           }
         >
-          {data.lowAttendance.map(r => {
+          {paginate(data.lowAttendance, lowAttP).map(r => {
             const pct = data.workingDays ? Math.round((r.present_days / data.workingDays) * 100) : 0;
             return (
               <Row key={r.id} onClick={() => navigate(`/person?id=${r.id}`)}>
@@ -202,6 +236,7 @@ export default function Notifications() {
               </Row>
             );
           })}
+          <Paginator page={lowAttP} total={data.lowAttendance.length} onChange={setLowAttP} />
         </SectionCard>
       )}
 
@@ -218,7 +253,7 @@ export default function Notifications() {
             </button>
           }
         >
-          {data.upcomingDeadlines.map(r => (
+          {paginate(data.upcomingDeadlines, deadlinesP).map(r => (
             <Row key={r.id}>
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{r.project_name}</p>
@@ -227,6 +262,7 @@ export default function Notifications() {
               <span className="pill pill-blue">{daysFromNow(r.deadline)}</span>
             </Row>
           ))}
+          <Paginator page={deadlinesP} total={data.upcomingDeadlines.length} onChange={setDeadlinesP} />
         </SectionCard>
       )}
 
@@ -243,7 +279,7 @@ export default function Notifications() {
             </button>
           }
         >
-          {data.overdueProjects.map(r => (
+          {paginate(data.overdueProjects, overdueP).map(r => (
             <Row key={r.id}>
               <div>
                 <p className="text-sm font-semibold" style={{ color: 'var(--text)' }}>{r.project_name}</p>
@@ -252,6 +288,7 @@ export default function Notifications() {
               <span className="pill pill-red">{daysFromNow(r.deadline)}</span>
             </Row>
           ))}
+          <Paginator page={overdueP} total={data.overdueProjects.length} onChange={setOverdueP} />
         </SectionCard>
       )}
 

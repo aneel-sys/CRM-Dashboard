@@ -1,33 +1,46 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
-const { getOfficeStartTime } = require('../db/officeSettings');
+const { getOfficeSettings } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
+const IST_MS = 5.5 * 60 * 60 * 1000;
+
 // GET /api/notifications
-// Returns live alerts: late arrivals, absent, low attendance, upcoming deadlines
+// Returns live alert summaries for the bell dropdown
 router.get('/', requireAuth, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = await getOfficeStartTime();
+    const settings = await getOfficeSettings();
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
     const notifications = [];
 
-    // 1. Late arrivals today
+    // 1. Late arrivals — use Worksuite's shift-aware late column
     const [lateRows] = await pool.query(
-      `SELECT u.name, TIME(a.clock_in_time) as clock_in,
-              TIMESTAMPDIFF(MINUTE, CONCAT(DATE(a.clock_in_time), ' ', ?), a.clock_in_time) as delay
+      `SELECT u.name, a.clock_in_time
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
-       WHERE DATE(a.clock_in_time) = ?
-         AND TIME(a.clock_in_time) > ?
-       ORDER BY delay DESC
+       WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
+       ORDER BY a.clock_in_time ASC
        LIMIT 10`,
-      [officeStart, today, officeStart]
+      [today]
     );
+
+    // Compute delay in Node.js using IST offset
+    const [oh, om] = settings.officeStart.split(':').map(Number);
+    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    lateRows.forEach(r => {
+      if (r.clock_in_time) {
+        const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+      } else {
+        r.delay = 0;
+      }
+    });
+
     if (lateRows.length > 0) {
       notifications.push({
         id: 'late-today',
@@ -40,7 +53,7 @@ router.get('/', requireAuth, async (req, res) => {
       });
     }
 
-    // 2. Absent employees (active users with no clock-in today)
+    // 2. Absent employees
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
     );
@@ -61,8 +74,9 @@ router.get('/', requireAuth, async (req, res) => {
       });
     }
 
-    // 3. Employees with low attendance this month (< 75%)
-    const workingDays = getWorkingDays(year, month);
+    // 3. Low attendance this month (< 75%) — holiday-aware working days
+    const holidays = await getHolidays(year, month);
+    const workingDays = getWorkingDays(year, month, holidays);
     if (workingDays > 0) {
       const threshold = Math.floor(workingDays * 0.75);
       const [lowAttRows] = await pool.query(
@@ -115,7 +129,7 @@ router.get('/', requireAuth, async (req, res) => {
       });
     }
 
-    // 5. Overdue projects (deadline passed, not completed)
+    // 5. Overdue projects
     const [[{ overdueCount }]] = await pool.query(
       `SELECT COUNT(*) as overdueCount FROM ${tbl('projects')}
        WHERE deadline < CURDATE() AND status NOT IN ('completed', 'canceled')`
@@ -142,25 +156,39 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/notifications/expanded — full employee/project lists per category
+// GET /api/notifications/expanded — full lists for the Notifications page
 router.get('/expanded', requireAuth, async (_req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = await getOfficeStartTime();
+    const settings = await getOfficeSettings();
     const now = new Date();
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
-    const workingDays = getWorkingDays(year, month);
 
+    const holidays = await getHolidays(year, month);
+    const workingDays = getWorkingDays(year, month, holidays);
+
+    // Late arrivals — use Worksuite's shift-aware late column
     const [lateRows] = await pool.query(
-      `SELECT u.id, u.name, TIME(a.clock_in_time) as clock_in,
-              TIMESTAMPDIFF(MINUTE, CONCAT(DATE(a.clock_in_time), ' ', ?), a.clock_in_time) as delay
+      `SELECT u.id, u.name, a.clock_in_time
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
-       WHERE DATE(a.clock_in_time) = ? AND TIME(a.clock_in_time) > ?
-       ORDER BY delay DESC`,
-      [officeStart, today, officeStart]
+       WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
+       ORDER BY a.clock_in_time ASC`,
+      [today]
     );
+
+    // Compute IST delay per row
+    const [oh, om] = settings.officeStart.split(':').map(Number);
+    const thresholdMins = oh * 60 + om + settings.lateMarkDuration;
+    lateRows.forEach(r => {
+      if (r.clock_in_time) {
+        const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
+        r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - thresholdMins);
+      } else {
+        r.delay = 0;
+      }
+    });
 
     const [presentRows] = await pool.query(
       `SELECT DISTINCT user_id FROM ${tbl('attendances')} WHERE DATE(clock_in_time) = ?`, [today]
@@ -222,12 +250,24 @@ router.get('/expanded', requireAuth, async (_req, res) => {
   }
 });
 
-function getWorkingDays(year, month) {
+async function getHolidays(year, month) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+       WHERE YEAR(date) = ? AND MONTH(date) = ?`,
+      [year, month]
+    );
+    return new Set(rows.map(r => r.d));
+  } catch { return new Set(); }
+}
+
+function getWorkingDays(year, month, holidays = new Set()) {
   const date = new Date(year, month - 1, 1);
   let count = 0;
   while (date.getMonth() === month - 1) {
-    const d = date.getDay();
-    if (d !== 0 && d !== 6) count++;
+    const day = date.getDay();
+    const ds = date.toISOString().slice(0, 10);
+    if (day !== 0 && !holidays.has(ds)) count++;
     date.setDate(date.getDate() + 1);
   }
   return count;
