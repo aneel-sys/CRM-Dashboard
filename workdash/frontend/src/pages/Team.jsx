@@ -97,10 +97,12 @@ export default function Team() {
     },
     {
       key: 'avg_clock_in', label: 'Avg Clock-In',
-      render: (v) => {
+      render: (v, row) => {
         if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-        const [h, m] = v.split(':').map(Number);
-        const isLate = h > 9 || (h === 9 && m > 0);
+        const toMins = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
+        const clockMins = toMins(v);
+        const shiftMins = row.avg_shift_start ? toMins(row.avg_shift_start) : 9 * 60;
+        const isLate = clockMins > shiftMins + 20;
         return (
           <span className="font-semibold text-sm" style={{ color: isLate ? 'var(--warning)' : 'var(--primary)' }}>
             {v}
