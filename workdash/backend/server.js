@@ -13,6 +13,7 @@ const projectRoutes = require('./routes/projects');
 const timingsRoutes = require('./routes/timings');
 const teamRoutes = require('./routes/team');
 const notificationRoutes = require('./routes/notifications');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 // Hostinger managed Node.js injects PORT automatically — use it first.
@@ -59,6 +60,7 @@ app.use('/api/projects', projectRoutes);
 app.use('/api/timings', timingsRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/settings', settingsRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

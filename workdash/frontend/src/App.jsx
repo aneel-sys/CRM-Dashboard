@@ -1,6 +1,7 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { SettingsProvider } from './context/SettingsContext';
 import { ToastProvider } from './components/Toast';
 import Layout from './components/Layout';
 import Login from './pages/Login';
@@ -11,6 +12,7 @@ import Projects from './pages/Projects';
 import Timings from './pages/Timings';
 import Team from './pages/Team';
 import Notifications from './pages/Notifications';
+import Settings from './pages/Settings';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -24,7 +26,7 @@ function ProtectedRoute({ children }) {
             <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
             <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.75" />
           </svg>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading WorkDash…</p>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)' }}>Loading…</p>
         </div>
       </div>
     );
@@ -53,6 +55,7 @@ function AppRoutes() {
         <Route path="/timings" element={<Timings />} />
         <Route path="/team" element={<Team />} />
         <Route path="/notifications" element={<Notifications />} />
+        <Route path="/settings" element={<Settings />} />
       </Route>
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
@@ -63,11 +66,13 @@ export default function App() {
   return (
     <BrowserRouter>
       <ThemeProvider>
-        <AuthProvider>
-          <ToastProvider>
-            <AppRoutes />
-          </ToastProvider>
-        </AuthProvider>
+        <SettingsProvider>
+          <AuthProvider>
+            <ToastProvider>
+              <AppRoutes />
+            </ToastProvider>
+          </AuthProvider>
+        </SettingsProvider>
       </ThemeProvider>
     </BrowserRouter>
   );

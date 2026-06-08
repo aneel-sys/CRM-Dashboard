@@ -1,8 +1,9 @@
 import { NavLink } from 'react-router-dom';
 import {
   MdDashboard, MdAccessTime, MdPerson,
-  MdFolderOpen, MdSchedule, MdPeople, MdNotifications,
+  MdFolderOpen, MdSchedule, MdPeople, MdNotifications, MdSettings,
 } from 'react-icons/md';
+import { useSettings } from '../context/SettingsContext';
 
 const NAV = [
   {
@@ -27,20 +28,17 @@ const NAV = [
       { to: '/team', icon: MdPeople, label: 'All Employees' },
     ],
   },
+  {
+    section: 'ADMIN',
+    items: [
+      { to: '/settings', icon: MdSettings, label: 'Settings' },
+    ],
+  },
 ];
 
-function LogoMark() {
-  return (
-    <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
-      <rect width="28" height="28" rx="7" fill="#1D9E75" />
-      <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
-      <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
-      <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.7" />
-    </svg>
-  );
-}
-
 export default function Sidebar({ collapsed, width }) {
+  const { appName, appSubtitle, logoUrl } = useSettings();
+
   return (
     <aside
       className="fixed top-0 left-0 h-screen flex flex-col z-40"
@@ -51,21 +49,37 @@ export default function Sidebar({ collapsed, width }) {
         borderRight: '1px solid rgba(255,255,255,0.06)',
       }}
     >
-      {/* Logo */}
+      {/* Logo / Brand */}
       <div
         className="flex items-center gap-3 px-4 py-5"
         style={{ borderBottom: '1px solid rgba(255,255,255,0.07)' }}
       >
         <div className="shrink-0">
-          <LogoMark />
+          {logoUrl ? (
+            <img
+              src={logoUrl}
+              alt="Logo"
+              style={{ width: 28, height: 28, objectFit: 'contain', borderRadius: 6 }}
+            />
+          ) : (
+            <svg width="28" height="28" viewBox="0 0 28 28" fill="none">
+              <rect width="28" height="28" rx="7" fill="#1D9E75" />
+              <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
+              <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
+              <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.7" />
+            </svg>
+          )}
         </div>
         {!collapsed && (
-          <div>
-            <div className="text-white font-bold text-[15px] leading-tight tracking-tight">
-              WorkDash
+          <div style={{ minWidth: 0 }}>
+            <div
+              className="text-white font-bold text-[15px] leading-tight tracking-tight"
+              style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}
+            >
+              {appName}
             </div>
-            <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)' }}>
-              Worksuite Analytics v1.0
+            <div className="text-[11px] mt-0.5" style={{ color: 'rgba(255,255,255,0.35)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {appSubtitle}
             </div>
           </div>
         )}

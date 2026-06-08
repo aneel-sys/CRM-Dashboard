@@ -11,6 +11,7 @@ const PAGE_TITLES = {
   '/timings':        'Timings / Timesheets',
   '/team':           'All Employees',
   '/notifications':  'Alerts & Notifications',
+  '/settings':       'Settings',
 };
 
 const SIDEBAR_W  = 230;

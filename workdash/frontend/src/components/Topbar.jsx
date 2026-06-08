@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
-import { MdMenu, MdDarkMode, MdLightMode, MdRefresh } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
+import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdSettings } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationPanel from './NotificationPanel';
@@ -22,6 +23,7 @@ const iconBtn = {
 export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefresh, onRefresh }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
+  const navigate = useNavigate();
   const [elapsed, setElapsed] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -174,6 +176,29 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
                   </p>
                   <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>Administrator</p>
                 </div>
+                <button
+                  onClick={() => { setMenuOpen(false); navigate('/settings'); }}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '9px 14px',
+                    fontSize: 13,
+                    fontWeight: 500,
+                    color: 'var(--text)',
+                    background: 'transparent',
+                    border: 'none',
+                    borderBottom: '1px solid var(--border)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 8,
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                >
+                  <MdSettings size={15} />
+                  Settings
+                </button>
                 <button
                   onClick={() => { setMenuOpen(false); logout(); }}
                   style={{

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { useSettings } from '../context/SettingsContext';
 
 export default function Login() {
   const [username, setUsername] = useState('');
@@ -8,6 +9,7 @@ export default function Login() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const { login } = useAuth();
+  const { appName, appSubtitle, logoUrl } = useSettings();
   const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
@@ -27,18 +29,27 @@ export default function Login() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#0f1923] to-[#1a2d40]">
       <div className="w-full max-w-sm">
-        {/* Logo */}
+
+        {/* Logo + App Name */}
         <div className="text-center mb-8">
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 14 }}>
-            <svg width="52" height="52" viewBox="0 0 28 28" fill="none">
-              <rect width="28" height="28" rx="8" fill="#1D9E75" />
-              <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
-              <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
-              <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.75" />
-            </svg>
+            {logoUrl ? (
+              <img
+                src={logoUrl}
+                alt="Logo"
+                style={{ height: 56, width: 'auto', maxWidth: 180, objectFit: 'contain' }}
+              />
+            ) : (
+              <svg width="52" height="52" viewBox="0 0 28 28" fill="none">
+                <rect width="28" height="28" rx="8" fill="#1D9E75" />
+                <rect x="6" y="18" width="4" height="6" rx="1" fill="white" opacity="0.9" />
+                <rect x="12" y="13" width="4" height="11" rx="1" fill="white" />
+                <rect x="18" y="8" width="4" height="16" rx="1" fill="white" opacity="0.75" />
+              </svg>
+            )}
           </div>
-          <h1 className="text-white text-2xl font-bold">WorkDash</h1>
-          <p className="text-white/50 text-sm mt-1">Worksuite Analytics Dashboard</p>
+          <h1 className="text-white text-2xl font-bold">{appName}</h1>
+          <p className="text-white/50 text-sm mt-1">{appSubtitle}</p>
         </div>
 
         {/* Card */}
@@ -88,7 +99,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-white/30 text-xs mt-6">
-          WorkDash v1.0 · Read-only access to Worksuite CRM
+          {appName} · Admin Access
         </p>
       </div>
     </div>
