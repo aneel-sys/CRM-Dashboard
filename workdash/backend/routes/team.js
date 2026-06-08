@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
-const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/team?month=5&year=2025&department_id=&search=
@@ -13,7 +12,6 @@ router.get('/', requireAuth, async (req, res) => {
     const search = req.query.search || null;
 
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = await getOfficeStartTime();
 
     const params = [month, year, today];
     let deptFilter = '';
@@ -38,9 +36,9 @@ router.get('/', requireAuth, async (req, res) => {
                 THEN DATE(a.clock_in_time) END) as present_days,
               -- Last clock-in
               MAX(CASE WHEN DATE(a.clock_in_time) = ? THEN a.clock_in_time END) as last_seen,
-              -- Today status
+              -- Today status — use Worksuite's late column (shift-aware)
               MAX(CASE WHEN DATE(a.clock_in_time) = ?
-                  THEN CASE WHEN TIME(a.clock_in_time) > ? THEN 'Late' ELSE 'Present' END
+                  THEN CASE WHEN a.late = 'yes' THEN 'Late' ELSE 'Present' END
                   END) as today_status
        FROM ${tbl('users')} u
        LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
@@ -51,7 +49,7 @@ router.get('/', requireAuth, async (req, res) => {
        ${deptFilter} ${searchFilter}
        GROUP BY u.id, u.name, u.email, d.team_name, ds.name, u.status
        ORDER BY u.name`,
-      [...params, today, officeStart]
+      [...params, today]
     );
 
     // Hours per user this month
@@ -131,9 +129,6 @@ router.get('/export', requireAuth, async (req, res) => {
     // reuse same logic, then build CSV
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
-    const today = new Date().toISOString().slice(0, 10);
-    const officeStart = await getOfficeStartTime();
-
     const [employees] = await pool.query(
       `SELECT u.id, u.name, d.team_name as department, ds.name as designation,
               COUNT(DISTINCT CASE WHEN MONTH(a.clock_in_time) = ? AND YEAR(a.clock_in_time) = ?

@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
-const { getOfficeStartTime } = require('../db/officeSettings');
+const { getOfficeSettings } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 let cache = { data: null, ts: 0 };
@@ -16,7 +16,7 @@ router.get('/today', requireAuth, async (req, res) => {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const officeStart = await getOfficeStartTime();
+    const { officeStart, lateMarkDuration } = await getOfficeSettings();
 
     // Total active employees
     const [[{ total }]] = await pool.query(
@@ -30,11 +30,11 @@ router.get('/today', requireAuth, async (req, res) => {
       [today]
     );
 
-    // Late today
+    // Late today — use Worksuite's own late column (shift-aware, respects late_mark_duration)
     const [[{ late }]] = await pool.query(
       `SELECT COUNT(*) as late FROM ${tbl('attendances')}
-       WHERE DATE(clock_in_time) = ? AND TIME(clock_in_time) > ?`,
-      [today, officeStart]
+       WHERE DATE(clock_in_time) = ? AND late = 'yes'`,
+      [today]
     );
 
     const absent = total - present;
@@ -83,7 +83,7 @@ router.get('/today', requireAuth, async (req, res) => {
            d.team_name AS department,
            COUNT(DISTINCT u.id) AS total,
            COUNT(DISTINCT CASE WHEN a.clock_in_time IS NOT NULL THEN u.id END) AS present,
-           COUNT(DISTINCT CASE WHEN a.clock_in_time IS NOT NULL AND TIME(a.clock_in_time) > ? THEN u.id END) AS late
+           COUNT(DISTINCT CASE WHEN a.late = 'yes' THEN u.id END) AS late
          FROM ${tbl('users')} u
          LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
          LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
@@ -93,7 +93,7 @@ router.get('/today', requireAuth, async (req, res) => {
          GROUP BY d.id, d.team_name
          ORDER BY present DESC
          LIMIT 8`,
-        [officeStart, today]
+        [today]
       );
       deptBreakdown = rows.map(r => ({
         department: r.department,
@@ -127,22 +127,31 @@ router.get('/today', requireAuth, async (req, res) => {
       `SELECT COUNT(*) as activeProjects FROM ${tbl('projects')} WHERE status NOT IN ('completed', 'canceled')`
     );
 
-    // Late arrivals detail
+    // Late arrivals detail — filter by Worksuite's own late flag
     const [lateArrivals] = await pool.query(
       `SELECT u.id, u.name, u.email,
               d.team_name as department,
               ds.name as designation,
               a.clock_in_time, a.clock_out_time,
-              TIMESTAMPDIFF(MINUTE, CONCAT(DATE(a.clock_in_time), ' ', ?), a.clock_in_time) as delay_minutes
+              GREATEST(0,
+                TIMESTAMPDIFF(MINUTE,
+                  CASE
+                    WHEN a.shift_start_time IS NOT NULL
+                      THEN TIMESTAMPADD(MINUTE, ?, a.shift_start_time)
+                    ELSE TIMESTAMPADD(MINUTE, ?, CONCAT(DATE(a.clock_in_time), ' ', ?))
+                  END,
+                  a.clock_in_time
+                )
+              ) as delay_minutes
        FROM ${tbl('attendances')} a
        JOIN ${tbl('users')} u ON u.id = a.user_id
        LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
        LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
        LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
-       WHERE DATE(a.clock_in_time) = ? AND TIME(a.clock_in_time) > ?
+       WHERE DATE(a.clock_in_time) = ? AND a.late = 'yes'
        ORDER BY a.clock_in_time ASC
        LIMIT 20`,
-      [officeStart, today, officeStart]
+      [lateMarkDuration, lateMarkDuration, officeStart, today]
     );
 
     // Top 5 workers this month

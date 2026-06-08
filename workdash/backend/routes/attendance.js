@@ -1,12 +1,12 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
-const { getOfficeStartTime } = require('../db/officeSettings');
+const { getOfficeSettings } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 
 
-function buildAttendanceQuery(date, departmentId, officeStartTime) {
+function buildAttendanceQuery(date, departmentId, { officeStart, lateMarkDuration }) {
   const deptFilter = departmentId ? 'AND ed.department_id = ?' : '';
   const sql = `
     SELECT
@@ -17,10 +17,19 @@ function buildAttendanceQuery(date, departmentId, officeStartTime) {
       ds.name      AS designation,
       a.clock_in_time,
       a.clock_out_time,
-      TIMESTAMPDIFF(MINUTE, CONCAT(?, ' ', ?), a.clock_in_time) AS delay_minutes,
+      GREATEST(0,
+        TIMESTAMPDIFF(MINUTE,
+          CASE
+            WHEN a.shift_start_time IS NOT NULL
+              THEN TIMESTAMPADD(MINUTE, ?, a.shift_start_time)
+            ELSE TIMESTAMPADD(MINUTE, ?, CONCAT(?, ' ', ?))
+          END,
+          a.clock_in_time
+        )
+      ) AS delay_minutes,
       CASE
         WHEN a.clock_in_time IS NULL THEN 'Absent'
-        WHEN TIME(a.clock_in_time) > ? THEN 'Late'
+        WHEN a.late = 'yes' THEN 'Late'
         ELSE 'On Time'
       END AS attendance_status,
       ROUND(
@@ -38,8 +47,8 @@ function buildAttendanceQuery(date, departmentId, officeStartTime) {
     ORDER BY u.name ASC
   `;
 
-  // params: date+officeStart for TIMESTAMPDIFF, officeStart for CASE WHEN, date for JOIN, optional deptId
-  const finalParams = [date, officeStartTime, officeStartTime, date];
+  // delay params: lateMarkDuration×2, date, officeStart; then date for JOIN, optional deptId
+  const finalParams = [lateMarkDuration, lateMarkDuration, date, officeStart, date];
   if (departmentId) finalParams.push(departmentId);
   return { sql, finalParams };
 }
@@ -50,9 +59,9 @@ router.get('/', requireAuth, async (req, res) => {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const departmentId = req.query.department_id || null;
     const statusFilter = req.query.status || null;
-    const officeStartTime = await getOfficeStartTime();
+    const settings = await getOfficeSettings();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, officeStartTime);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
     let [rows] = await pool.query(sql, finalParams);
 
     if (statusFilter && statusFilter !== 'all') {
@@ -81,9 +90,9 @@ router.get('/export', requireAuth, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const departmentId = req.query.department_id || null;
-    const officeStartTime = await getOfficeStartTime();
+    const settings = await getOfficeSettings();
 
-    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, officeStartTime);
+    const { sql, finalParams } = buildAttendanceQuery(date, departmentId, settings);
     const [rows] = await pool.query(sql, finalParams);
 
     const headers = ['Name', 'Department', 'Designation', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
@@ -111,7 +120,6 @@ router.get('/export', requireAuth, async (req, res) => {
 router.get('/trend', requireAuth, async (req, res) => {
   try {
     const days = Math.min(parseInt(req.query.days) || 30, 60);
-    const officeStart = await getOfficeStartTime();
 
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
@@ -121,13 +129,13 @@ router.get('/trend', requireAuth, async (req, res) => {
       `SELECT
          DATE(clock_in_time) as date,
          COUNT(DISTINCT user_id) as present,
-         COUNT(DISTINCT CASE WHEN TIME(clock_in_time) > ? THEN user_id END) as late
+         COUNT(DISTINCT CASE WHEN late = 'yes' THEN user_id END) as late
        FROM ${tbl('attendances')}
        WHERE DATE(clock_in_time) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
          AND DATE(clock_in_time) <= CURDATE()
        GROUP BY DATE(clock_in_time)
        ORDER BY date ASC`,
-      [officeStart, days - 1]
+      [days - 1]
     );
 
     const trend = rows.map(r => ({
