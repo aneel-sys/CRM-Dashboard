@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
 import {
-  MdSearch, MdArrowBack, MdPeople, MdSchedule, MdFolderOpen, MdAttachMoney,
+  MdArrowBack, MdPeople, MdSchedule, MdFolderOpen, MdAttachMoney,
 } from 'react-icons/md';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
 import DataTable from '../components/DataTable';
@@ -527,27 +527,45 @@ export default function Projects() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
   const [projects, setProjects] = useState([]);
+  const [allProjects, setAllProjects] = useState([]);
   const [loading, setLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('');
-  const [search, setSearch] = useState('');
+  const [projectFilter, setProjectFilter] = useState('');
   const [selected, setSelected] = useState(null);
   const [statuses, setStatuses] = useState([]);
 
+  // Fetch all project names once for the jump-to dropdown
   useEffect(() => {
-    api.get('/projects/statuses')
-      .then(res => setStatuses(res.data.statuses || []))
-      .catch(() => {});
+    Promise.all([
+      api.get('/projects/statuses'),
+      api.get('/projects'),
+    ]).then(([sRes, pRes]) => {
+      setStatuses(sRes.data.statuses || []);
+      setAllProjects(pRes.data.projects || []);
+    }).catch(() => {});
   }, []);
 
-  const fetchProjects = () => {
+  const fetchProjects = (status = statusFilter) => {
     setLoading(true);
     const p = new URLSearchParams();
-    if (statusFilter) p.set('status', statusFilter);
-    if (search) p.set('search', search);
+    if (status) p.set('status', status);
     api.get(`/projects?${p}`)
       .then(res => setProjects(res.data.projects || []))
       .catch(err => toast(err.response?.data?.message || 'Failed to load projects'))
       .finally(() => setLoading(false));
+  };
+
+  const handleStatusChange = (val) => {
+    setStatusFilter(val);
+    setProjectFilter('');
+    fetchProjects(val);
+  };
+
+  const handleProjectSelect = (val) => {
+    setProjectFilter(val);
+    if (!val) return;
+    const proj = allProjects.find(p => String(p.id) === val);
+    if (proj) setSelected(proj);
   };
 
   useEffect(() => { fetchProjects(); }, [refreshKey]);
@@ -562,10 +580,10 @@ export default function Projects() {
   return (
     <div className="space-y-5 fade-up">
       {/* Filter bar */}
-      <div className="card px-5 py-4 flex flex-wrap gap-3 items-end">
+      <div className="card px-5 py-4 flex flex-wrap gap-4 items-end">
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
-          <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
+          <select value={statusFilter} onChange={e => handleStatusChange(e.target.value)} className="form-input form-select" style={{ minWidth: 150, paddingRight: 28 }}>
             <option value="">All Statuses</option>
             {statuses.map(s => (
               <option key={s} value={s}>
@@ -575,21 +593,15 @@ export default function Projects() {
           </select>
         </div>
         <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Search</label>
-          <div className="relative">
-            <MdSearch size={15} className="absolute left-2.5 top-[50%] -translate-y-1/2" style={{ color: 'var(--text-muted)' }} />
-            <input
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && fetchProjects()}
-              placeholder="Search projects…"
-              className="form-input"
-              style={{ paddingLeft: 28, width: 200 }}
-            />
-          </div>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Jump to Project</label>
+          <select value={projectFilter} onChange={e => handleProjectSelect(e.target.value)} className="form-input form-select" style={{ minWidth: 220, paddingRight: 28 }}>
+            <option value="">Select a project…</option>
+            {allProjects.map(p => (
+              <option key={p.id} value={p.id}>{p.name}</option>
+            ))}
+          </select>
         </div>
-        <button onClick={fetchProjects} className="btn btn-primary">Apply</button>
-        <div className="ml-auto flex items-center gap-3">
+        <div className="ml-auto flex items-center gap-3 self-end pb-0.5">
           <span className="text-sm font-medium" style={{ color: 'var(--text-muted)' }}>
             {projects.length} project{projects.length !== 1 ? 's' : ''}
           </span>
