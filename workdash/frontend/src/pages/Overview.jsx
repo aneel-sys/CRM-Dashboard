@@ -11,6 +11,7 @@ import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
+import { useSettings } from '../context/SettingsContext';
 
 const DONUT_COLORS = ['#1D9E75', '#378ADD', '#E24B4A', '#EF9F27'];
 
