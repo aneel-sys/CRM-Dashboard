@@ -10,7 +10,6 @@ function SectionCard({ title, subtitle, children }) {
       border: '1px solid var(--border)',
       borderRadius: 12,
       padding: 24,
-      marginBottom: 20,
     }}>
       <div style={{ marginBottom: 20 }}>
         <h3 style={{ margin: 0, fontSize: 14, fontWeight: 700, color: 'var(--text)' }}>{title}</h3>
@@ -151,7 +150,7 @@ export default function Settings() {
   const displayLogo = preview || logoUrl;
 
   return (
-    <div style={{ maxWidth: 620, position: 'relative' }}>
+    <div style={{ position: 'relative' }}>
 
       {/* Toast */}
       {toast && (
@@ -176,6 +175,14 @@ export default function Settings() {
           {toast.msg}
         </div>
       )}
+
+      {/* Two-column grid */}
+      <div style={{
+        display: 'grid',
+        gridTemplateColumns: 'repeat(auto-fit, minmax(380px, 1fr))',
+        gap: 20,
+        alignItems: 'start',
+      }}>
 
       {/* Branding card */}
       <SectionCard
@@ -397,7 +404,7 @@ export default function Settings() {
         </button>
       </SectionCard>
 
-
+      </div>{/* end grid */}
     </div>
   );
 }
