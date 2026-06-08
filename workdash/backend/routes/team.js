@@ -104,8 +104,9 @@ router.get('/', requireAuth, async (req, res) => {
       rows.forEach(r => { projectMap[r.user_id] = r.active_projects; });
     } catch {}
 
-    // Working days in month
-    const workingDays = getWorkingDays(year, month);
+    // Working days in month (excluding Sundays + holidays from DB)
+    const holidays = await getHolidays(year, month);
+    const workingDays = getWorkingDays(year, month, holidays);
 
     const result = employees.map(e => ({
       ...e,
@@ -158,7 +159,8 @@ router.get('/export', requireAuth, async (req, res) => {
       rows.forEach(r => { hoursMap[r.user_id] = parseFloat(r.hours) || 0; });
     } catch {}
 
-    const workingDays = getWorkingDays(year, month);
+    const holidays = await getHolidays(year, month);
+    const workingDays = getWorkingDays(year, month, holidays);
     const headers = ['Name', 'Department', 'Designation', 'Present Days', 'Working Days', 'Attendance %', 'Month Hours'];
     const csvRows = employees.map(e => [
       `"${e.name}"`,
@@ -179,12 +181,24 @@ router.get('/export', requireAuth, async (req, res) => {
   }
 });
 
-function getWorkingDays(year, month) {
+async function getHolidays(year, month) {
+  try {
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+       WHERE YEAR(date) = ? AND MONTH(date) = ?`,
+      [year, month]
+    );
+    return new Set(rows.map(r => r.d));
+  } catch { return new Set(); }
+}
+
+function getWorkingDays(year, month, holidays = new Set()) {
   const date = new Date(year, month - 1, 1);
   let count = 0;
   while (date.getMonth() === month - 1) {
     const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
+    const ds = date.toISOString().slice(0, 10);
+    if (day !== 0 && !holidays.has(ds)) count++;
     date.setDate(date.getDate() + 1);
   }
   return count;

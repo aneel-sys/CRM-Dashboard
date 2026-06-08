@@ -10,6 +10,8 @@ import StatCard from '../components/StatCard';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
+import { fmtTime } from '../utils/time';
+import { useSettings } from '../context/SettingsContext';
 
 function StatusPill({ status }) {
   const map = {
@@ -18,11 +20,6 @@ function StatusPill({ status }) {
     'Absent':  'pill pill-gray',
   };
   return <span className={map[status] || 'pill pill-gray'}>{status}</span>;
-}
-
-function fmt(dt) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
 }
 
 const trendTooltip = ({ active, payload, label }) => {
@@ -43,6 +40,8 @@ export default function Attendance() {
   const toast = useToast();
   const today = new Date().toISOString().slice(0, 10);
 
+  const { timeFormat } = useSettings();
+  const fmt = dt => fmtTime(dt, timeFormat);
   const [date, setDate] = useState(today);
   const [deptId, setDeptId] = useState('');
   // Pre-apply status from URL param (e.g. /attendance?status=Late from Overview card clicks)

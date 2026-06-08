@@ -4,6 +4,8 @@ import { MdSearch, MdDownload, MdArrowForward } from 'react-icons/md';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
+import { fmtTime } from '../utils/time';
+import { useSettings } from '../context/SettingsContext';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -33,6 +35,7 @@ function Avatar({ name, size = 28 }) {
 
 export default function Team() {
   const { refreshKey } = useOutletContext();
+  const { timeFormat } = useSettings();
   const toast = useToast();
   const navigate = useNavigate();
   const now = new Date();
@@ -133,7 +136,7 @@ export default function Team() {
       key: 'last_seen', label: 'Last Seen',
       render: (v, row) => {
         if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
-        const t = new Date(v).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
+        const t = fmtTime(v, timeFormat);
         const isLate = row.today_status === 'Late';
         return (
           <div className="flex items-center gap-1.5">

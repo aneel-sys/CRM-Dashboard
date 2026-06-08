@@ -64,9 +64,10 @@ function TextInput({ value, onChange, placeholder, maxLength }) {
 }
 
 export default function Settings() {
-  const { appName, appSubtitle, logoUrl, reload } = useSettings();
+  const { appName, appSubtitle, logoUrl, timeFormat: savedTimeFormat, reload } = useSettings();
   const [name, setName] = useState('');
   const [subtitle, setSubtitle] = useState('');
+  const [timeFormat, setTimeFormat] = useState('24h');
   const [preview, setPreview] = useState(null);
   const [previewFile, setPreviewFile] = useState(null);
   const [uploading, setUploading] = useState(false);
@@ -77,7 +78,8 @@ export default function Settings() {
   useEffect(() => {
     setName(appName);
     setSubtitle(appSubtitle);
-  }, [appName, appSubtitle]);
+    setTimeFormat(savedTimeFormat || '24h');
+  }, [appName, appSubtitle, savedTimeFormat]);
 
   const showToast = (msg, type = 'success') => {
     setToast({ msg, type });
@@ -136,7 +138,7 @@ export default function Settings() {
     if (!name.trim()) return;
     setSaving(true);
     try {
-      await api.put('/settings', { appName: name.trim(), appSubtitle: subtitle.trim() });
+      await api.put('/settings', { appName: name.trim(), appSubtitle: subtitle.trim(), timeFormat });
       await reload();
       showToast('Settings saved successfully');
     } catch {
@@ -345,32 +347,56 @@ export default function Settings() {
         </button>
       </SectionCard>
 
-      {/* Admin credentials info card */}
+      {/* Display Preferences */}
       <SectionCard
-        title="Admin Credentials"
-        subtitle="Username and password are managed via server environment variables."
+        title="Display Preferences"
+        subtitle="Controls how times appear across all pages in the dashboard."
       >
-        <div style={{
-          background: 'var(--bg)',
-          borderRadius: 8,
-          padding: '12px 16px',
-          fontFamily: 'monospace',
-          fontSize: 13,
-          marginBottom: 12,
-          border: '1px solid var(--border)',
-        }}>
-          <div style={{ color: 'var(--text-muted)', marginBottom: 4 }}>
-            {'ADMIN_USER='}<span style={{ color: '#1D9E75' }}>your_username</span>
-          </div>
-          <div style={{ color: 'var(--text-muted)' }}>
-            {'ADMIN_PASS='}<span style={{ color: '#1D9E75' }}>your_password</span>
-          </div>
+        <FieldLabel>Time Format</FieldLabel>
+        <div style={{ display: 'flex', gap: 10, marginBottom: 8 }}>
+          {[
+            { value: '24h', label: '24-hour', example: '09:20' },
+            { value: '12h', label: '12-hour', example: '9:20 AM' },
+          ].map(opt => (
+            <button
+              key={opt.value}
+              onClick={() => setTimeFormat(opt.value)}
+              style={{
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '10px 24px', borderRadius: 10, cursor: 'pointer',
+                border: `2px solid ${timeFormat === opt.value ? '#1D9E75' : 'var(--border)'}`,
+                background: timeFormat === opt.value ? '#ECFDF5' : 'var(--bg)',
+                transition: 'all 0.15s',
+              }}
+            >
+              <span style={{ fontSize: 18, fontWeight: 700, color: timeFormat === opt.value ? '#1D9E75' : 'var(--text)' }}>
+                {opt.example}
+              </span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 3 }}>{opt.label}</span>
+            </button>
+          ))}
         </div>
-        <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: 0, lineHeight: 1.6 }}>
-          To change credentials: edit the <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 4, fontSize: 11 }}>.env</code> file
-          in Hostinger File Manager, then restart the Node.js app from the hosting panel.
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', marginBottom: 20 }}>
+          Applies to clock-in/out times on all pages
         </p>
+        <button
+          onClick={saveSettings}
+          disabled={saving || !name.trim()}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: 8,
+            padding: '10px 22px', borderRadius: 8, fontSize: 14, fontWeight: 600,
+            border: 'none', background: '#1D9E75', color: '#fff',
+            cursor: saving || !name.trim() ? 'not-allowed' : 'pointer',
+            opacity: saving || !name.trim() ? 0.6 : 1,
+          }}
+          onMouseEnter={e => { if (!saving) e.currentTarget.style.background = '#0F6E56'; }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#1D9E75'; }}
+        >
+          <MdSave size={16} />
+          {saving ? 'Saving…' : 'Save Preferences'}
+        </button>
       </SectionCard>
+
 
     </div>
   );

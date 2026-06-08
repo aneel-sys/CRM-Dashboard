@@ -5,6 +5,7 @@ const DEFAULTS = {
   appName: 'CRM Dashboard',
   appSubtitle: 'Analytics Dashboard',
   logoUrl: null,
+  timeFormat: '24h',
 };
 
 const SettingsContext = createContext({ ...DEFAULTS, reload: () => {} });
@@ -20,6 +21,7 @@ export function SettingsProvider({ children }) {
           appName: data.appName,
           appSubtitle: data.appSubtitle,
           logoUrl: data.logoUrl,
+          timeFormat: data.timeFormat || '24h',
         });
       }
     } catch {

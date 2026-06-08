@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { MdNotifications, MdClose, MdWarning, MdError, MdInfo, MdRefresh, MdAccessTime, MdPeople, MdFolderOpen } from 'react-icons/md';
 import api from '../api/axios';
+import { fmtTime } from '../utils/time';
+import { useSettings } from '../context/SettingsContext';
 
 const TYPE_CONFIG = {
   warning: { icon: MdWarning,  color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', dot: '#EF9F27' },
@@ -17,6 +19,7 @@ const NOTIF_ICON = {
 };
 
 export default function NotificationPanel() {
+  const { timeFormat } = useSettings();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [total, setTotal] = useState(0);
@@ -143,7 +146,7 @@ export default function NotificationPanel() {
               </p>
               {lastFetched && (
                 <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
-                  Updated {lastFetched.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}
+                  Updated {fmtTime(lastFetched, timeFormat)}
                 </p>
               )}
             </div>

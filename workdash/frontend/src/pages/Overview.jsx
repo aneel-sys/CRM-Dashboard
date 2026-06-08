@@ -10,13 +10,9 @@ import {
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
+import { fmtTime } from '../utils/time';
 
 const DONUT_COLORS = ['#1D9E75', '#378ADD', '#E24B4A', '#EF9F27'];
-
-function fmt(dt) {
-  if (!dt) return '—';
-  return new Date(dt).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
 
 function SectionCard({ title, subtitle, children, action }) {
   return (
@@ -81,6 +77,8 @@ export default function Overview() {
       .finally(() => setLoading(false));
   }, [refreshKey]);
 
+  const { timeFormat } = useSettings();
+  const fmt = dt => fmtTime(dt, timeFormat);
   const stats = data?.stats || {};
 
   const weeklyData = (data?.weeklyHours || []).map(w => ({

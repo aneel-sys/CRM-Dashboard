@@ -11,7 +11,7 @@ function readSettings() {
   try {
     return JSON.parse(fs.readFileSync(SETTINGS_FILE, 'utf8'));
   } catch {
-    return { appName: 'CRM Dashboard', appSubtitle: 'Analytics Dashboard', logoFile: null };
+    return { appName: 'CRM Dashboard', appSubtitle: 'Analytics Dashboard', logoFile: null, timeFormat: '24h' };
   }
 }
 
@@ -54,6 +54,7 @@ function buildResponse(s) {
     appName: s.appName || 'CRM Dashboard',
     appSubtitle: s.appSubtitle || 'Analytics Dashboard',
     logoUrl: s.logoFile ? `/uploads/${s.logoFile}` : null,
+    timeFormat: s.timeFormat || '24h',
   };
 }
 
@@ -69,13 +70,14 @@ router.get('/', requireAuth, (req, res) => {
 
 // PUT /api/settings — update app name + subtitle
 router.put('/', requireAuth, (req, res) => {
-  const { appName, appSubtitle } = req.body;
+  const { appName, appSubtitle, timeFormat } = req.body;
   if (!appName?.trim()) {
     return res.status(400).json({ success: false, message: 'App name is required.' });
   }
   const s = readSettings();
   s.appName = appName.trim();
   s.appSubtitle = (appSubtitle || '').trim() || 'Analytics Dashboard';
+  if (timeFormat === '12h' || timeFormat === '24h') s.timeFormat = timeFormat;
   writeSettings(s);
   res.json(buildResponse(s));
 });

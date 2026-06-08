@@ -6,6 +6,8 @@ import {
 } from 'react-icons/md';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
+import { fmtTime } from '../utils/time';
+import { useSettings } from '../context/SettingsContext';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
@@ -73,6 +75,7 @@ function EmptyState({ message }) {
 
 export default function Notifications() {
   const { refreshKey } = useOutletContext();
+  const { timeFormat } = useSettings();
   const navigate = useNavigate();
   const toast = useToast();
   const [data, setData] = useState(null);
@@ -107,7 +110,7 @@ export default function Notifications() {
       <div className="flex items-center justify-between">
         <div>
           <p className="section-title text-base">Live Alerts</p>
-          <p className="section-sub">Auto-updates every 60s · {new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit', hour12: false })}</p>
+          <p className="section-sub">Auto-updates every 60s · {fmtTime(new Date(), timeFormat)}</p>
         </div>
         <button onClick={load} className="btn btn-secondary gap-2">
           <MdRefresh size={15} /> Refresh
