@@ -46,7 +46,7 @@ router.get('/', requireAuth, async (req, res) => {
         id: 'late-today',
         type: 'warning',
         title: `${lateRows.length} Late Arrival${lateRows.length > 1 ? 's' : ''} Today`,
-        detail: lateRows.slice(0, 3).map(r => `${r.name} (+${r.delay}m)`).join(', ')
+        detail: lateRows.slice(0, 3).map(r => r.delay > 0 ? `${r.name} (+${r.delay}m)` : r.name).join(', ')
           + (lateRows.length > 3 ? ` +${lateRows.length - 3} more` : ''),
         count: lateRows.length,
         time: 'Today',

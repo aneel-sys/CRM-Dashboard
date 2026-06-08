@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
-import { MdNotifications, MdClose, MdWarning, MdError, MdInfo, MdRefresh, MdAccessTime, MdPeople, MdFolderOpen } from 'react-icons/md';
+import { useNavigate } from 'react-router-dom';
+import { MdNotifications, MdClose, MdWarning, MdError, MdInfo, MdRefresh, MdAccessTime, MdPeople, MdFolderOpen, MdArrowForward } from 'react-icons/md';
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
@@ -18,8 +19,17 @@ const NOTIF_ICON = {
   'overdue-projects':    MdFolderOpen,
 };
 
+const NOTIF_ROUTE = {
+  'late-today':         '/notifications',
+  'absent-today':       '/attendance',
+  'low-attendance':     '/notifications',
+  'upcoming-deadlines': '/projects',
+  'overdue-projects':   '/projects',
+};
+
 export default function NotificationPanel() {
   const { timeFormat } = useSettings();
+  const navigate = useNavigate();
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [total, setTotal] = useState(0);
@@ -62,6 +72,12 @@ export default function NotificationPanel() {
   const handleOpen = () => {
     setOpen(o => !o);
     if (!open) fetchNotifications();
+  };
+
+  const handleNotifClick = (n) => {
+    const route = NOTIF_ROUTE[n.id] || '/notifications';
+    setOpen(false);
+    navigate(route);
   };
 
   const hasAlerts = total > 0;
@@ -198,14 +214,21 @@ export default function NotificationPanel() {
                   const cfg = TYPE_CONFIG[n.type] || TYPE_CONFIG.info;
                   const ItemIcon = NOTIF_ICON[n.id] || MdInfo;
                   return (
-                    <div key={n.id} style={{
-                      display: 'flex',
-                      gap: 12,
-                      padding: '12px 14px',
-                      borderRadius: 8,
-                      background: cfg.bg,
-                      border: `1px solid ${cfg.border}`,
-                    }}>
+                    <div
+                      key={n.id}
+                      onClick={() => handleNotifClick(n)}
+                      onMouseEnter={e => { e.currentTarget.style.filter = 'brightness(0.96)'; e.currentTarget.style.cursor = 'pointer'; }}
+                      onMouseLeave={e => { e.currentTarget.style.filter = ''; }}
+                      style={{
+                        display: 'flex',
+                        gap: 12,
+                        padding: '12px 14px',
+                        borderRadius: 8,
+                        background: cfg.bg,
+                        border: `1px solid ${cfg.border}`,
+                        cursor: 'pointer',
+                        transition: 'filter 0.12s',
+                      }}>
                       {/* Icon */}
                       <div style={{
                         width: 34,
@@ -234,6 +257,11 @@ export default function NotificationPanel() {
                           {n.detail}
                         </p>
                       </div>
+
+                      {/* Arrow */}
+                      <div style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+                        <MdArrowForward size={13} style={{ color: cfg.color, opacity: 0.5 }} />
+                      </div>
                     </div>
                   );
                 })}
@@ -245,13 +273,27 @@ export default function NotificationPanel() {
           <div style={{
             padding: '10px 16px',
             borderTop: '1px solid var(--border)',
-            textAlign: 'center',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
           }}>
             <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>
               {hasAlerts
                 ? `${total} active alert${total !== 1 ? 's' : ''} · auto-refreshes every 60s`
                 : 'Monitoring: attendance, projects & deadlines'}
             </p>
+            {hasAlerts && (
+              <button
+                onClick={() => { setOpen(false); navigate('/notifications'); }}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 4,
+                  fontSize: 11, fontWeight: 600, color: 'var(--primary)',
+                  background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                }}
+              >
+                View all <MdArrowForward size={12} />
+              </button>
+            )}
           </div>
         </div>
       )}
