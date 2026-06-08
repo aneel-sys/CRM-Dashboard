@@ -141,16 +141,6 @@ export default function Overview() {
     );
   };
 
-  const donutLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, value }) => {
-    const RADIAN = Math.PI / 180;
-    const r = innerRadius + (outerRadius - innerRadius) * 0.5;
-    const x = cx + r * Math.cos(-midAngle * RADIAN);
-    const y = cy + r * Math.sin(-midAngle * RADIAN);
-    return value > 0 ? (
-      <text x={x} y={y} fill="#fff" textAnchor="middle" dominantBaseline="central" fontSize={11} fontWeight={700}>{value}</text>
-    ) : null;
-  };
-
   const donutLegend = ({ payload }) => (
     <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
       {payload.map((entry, i) => (
@@ -331,8 +321,6 @@ export default function Overview() {
                     outerRadius={50}
                     dataKey="value"
                     paddingAngle={3}
-                    labelLine={false}
-                    label={donutLabel}
                   >
                     {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
                   </Pie>
