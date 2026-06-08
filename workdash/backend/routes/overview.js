@@ -7,42 +7,6 @@ const { requireAuth } = require('../middleware/auth');
 let cache = { data: null, ts: 0 };
 const CACHE_TTL = 30 * 1000;
 
-// SSE clients set
-const sseClients = new Set();
-function pushToClients(payload) {
-  const msg = `data: ${JSON.stringify(payload)}\n\n`;
-  sseClients.forEach(send => send(msg));
-}
-
-// SSE endpoint — streams overview updates in real-time
-router.get('/stream', (req, res) => {
-  if (!req.session?.user) {
-    res.status(401).end();
-    return;
-  }
-  res.setHeader('Content-Type', 'text/event-stream');
-  res.setHeader('Cache-Control', 'no-cache');
-  res.setHeader('Connection', 'keep-alive');
-  res.setHeader('X-Accel-Buffering', 'no');
-  res.flushHeaders();
-
-  const send = (msg) => res.write(msg);
-  sseClients.add(send);
-
-  // Send current cache immediately if fresh
-  if (cache.data) {
-    res.write(`data: ${JSON.stringify({ success: true, ...cache.data })}\n\n`);
-  }
-
-  // Heartbeat every 25s to keep connection alive
-  const hb = setInterval(() => res.write(': ping\n\n'), 25_000);
-
-  req.on('close', () => {
-    sseClients.delete(send);
-    clearInterval(hb);
-  });
-});
-
 // GET /api/overview/today
 router.get('/today', requireAuth, async (req, res) => {
   try {
@@ -317,8 +281,6 @@ router.get('/today', requireAuth, async (req, res) => {
     };
 
     cache = { data, ts: Date.now() };
-    // Push fresh data to any connected SSE clients
-    pushToClients({ success: true, ...data });
     res.json({ success: true, ...data });
   } catch (err) {
     console.error('Overview error:', err.message);

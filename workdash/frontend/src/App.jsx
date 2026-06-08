@@ -3,6 +3,7 @@ import { AuthProvider, useAuth } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import { SettingsProvider } from './context/SettingsContext';
 import { ToastProvider } from './components/Toast';
+import { SSEProvider } from './context/SSEContext';
 import Layout from './components/Layout';
 import Login from './pages/Login';
 import Overview from './pages/Overview';
@@ -68,9 +69,11 @@ export default function App() {
       <ThemeProvider>
         <SettingsProvider>
           <AuthProvider>
-            <ToastProvider>
-              <AppRoutes />
-            </ToastProvider>
+            <SSEProvider>
+              <ToastProvider>
+                <AppRoutes />
+              </ToastProvider>
+            </SSEProvider>
           </AuthProvider>
         </SettingsProvider>
       </ThemeProvider>

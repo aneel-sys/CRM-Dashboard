@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
@@ -15,10 +15,9 @@ const PAGE_TITLES = {
   '/settings':       'Settings',
 };
 
-const SIDEBAR_W  = 230;
-const SIDEBAR_C  = 64;
-const TOPBAR_H   = 60;
-const REFRESH_MS = 60_000;
+const SIDEBAR_W = 230;
+const SIDEBAR_C = 64;
+const TOPBAR_H  = 60;
 
 export default function Layout() {
   const location = useLocation();
@@ -31,11 +30,6 @@ export default function Layout() {
     setLastRefresh(Date.now());
     setRefreshKey(k => k + 1);
   }, []);
-
-  useEffect(() => {
-    const t = setInterval(doRefresh, REFRESH_MS);
-    return () => clearInterval(t);
-  }, [doRefresh]);
 
   const sw = collapsed ? SIDEBAR_C : SIDEBAR_W;
   const title = PAGE_TITLES[location.pathname] || appName;

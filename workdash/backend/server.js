@@ -5,15 +5,17 @@ const cors = require('cors');
 const session = require('express-session');
 const FileStore = require('session-file-store')(session);
 
-const authRoutes = require('./routes/auth');
-const overviewRoutes = require('./routes/overview');
+const authRoutes       = require('./routes/auth');
+const overviewRoutes   = require('./routes/overview');
 const attendanceRoutes = require('./routes/attendance');
-const employeeRoutes = require('./routes/employees');
-const projectRoutes = require('./routes/projects');
-const timingsRoutes = require('./routes/timings');
-const teamRoutes = require('./routes/team');
+const employeeRoutes   = require('./routes/employees');
+const projectRoutes    = require('./routes/projects');
+const timingsRoutes    = require('./routes/timings');
+const teamRoutes       = require('./routes/team');
 const notificationRoutes = require('./routes/notifications');
-const settingsRoutes = require('./routes/settings');
+const settingsRoutes   = require('./routes/settings');
+const streamRoutes     = require('./routes/stream');
+const broadcaster      = require('./lib/broadcaster');
 
 const app = express();
 // Hostinger managed Node.js injects PORT automatically — use it first.
@@ -61,6 +63,7 @@ app.use('/api/timings', timingsRoutes);
 app.use('/api/team', teamRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/stream', streamRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
@@ -105,4 +108,5 @@ app.use((err, req, res, next) => {
 
 app.listen(PORT, () => {
   console.log(`🚀 WorkDash API running on http://localhost:${PORT}`);
+  broadcaster.start();
 });

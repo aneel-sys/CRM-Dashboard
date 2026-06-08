@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   MdFilterList, MdDownload, MdPeople, MdAccessTime, MdPersonOff, MdCheckCircle,
@@ -12,6 +12,7 @@ import { useToast } from '../components/Toast';
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
+import { useSSE } from '../context/SSEContext';
 
 function StatusPill({ status }) {
   const map = {
@@ -39,6 +40,8 @@ export default function Attendance() {
   const [searchParams] = useSearchParams();
   const toast = useToast();
   const today = new Date().toISOString().slice(0, 10);
+  const sseTick = useSSE('tick');
+  const prevTickRef = useRef(0);
 
   const { timeFormat } = useSettings();
   const fmt = dt => fmtTime(dt, timeFormat);
@@ -77,8 +80,15 @@ export default function Attendance() {
       .finally(() => setLoading(false));
   };
 
-  // Fetch on mount (picks up URL status param) and on auto-refresh
+  // Fetch on mount (picks up URL status param) and on manual refresh
   useEffect(() => { fetchData(); }, [refreshKey]);
+
+  // SSE tick — silently re-fetch when viewing today's data
+  useEffect(() => {
+    if (!sseTick?.ts || sseTick.ts <= prevTickRef.current) return;
+    prevTickRef.current = sseTick.ts;
+    if (date === today) fetchData();
+  }, [sseTick]);
 
   const handleExport = () => {
     const p = new URLSearchParams({ date });

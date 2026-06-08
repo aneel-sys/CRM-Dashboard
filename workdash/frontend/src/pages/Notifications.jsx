@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MdAccessTime, MdPersonOff, MdPeople, MdFolderOpen,
@@ -8,6 +8,7 @@ import { useToast } from '../components/Toast';
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
+import { useSSE } from '../context/SSEContext';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PAGE_SIZE = 8;
@@ -110,6 +111,8 @@ export default function Notifications() {
   const { timeFormat } = useSettings();
   const navigate = useNavigate();
   const toast = useToast();
+  const sseNotif = useSSE('notifications');
+  const prevSseTs = useRef(0);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [lateP, setLateP] = useState(1);
@@ -129,7 +132,17 @@ export default function Notifications() {
       .finally(() => setLoading(false));
   };
 
+  // Initial + manual refresh
   useEffect(() => { load(); }, [refreshKey]);
+
+  // SSE push — silently reload expanded data when notifications change
+  useEffect(() => {
+    if (!sseNotif?.ts || sseNotif.ts <= prevSseTs.current) return;
+    prevSseTs.current = sseNotif.ts;
+    api.get('/notifications/expanded')
+      .then(res => setData(res.data))
+      .catch(() => {});
+  }, [sseNotif]);
 
   const today = new Date().toISOString().slice(0, 10);
   const monthLabel = MONTHS[(data?.month || new Date().getMonth() + 1) - 1];

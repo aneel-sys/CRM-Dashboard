@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
@@ -12,6 +12,7 @@ import { useToast } from '../components/Toast';
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
+import { useSSE } from '../context/SSEContext';
 
 const DONUT_COLORS = ['#1D9E75', '#378ADD', '#E24B4A', '#EF9F27'];
 
@@ -69,43 +70,32 @@ export default function Overview() {
   const toast = useToast();
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [live, setLive] = useState(false);
-  const esRef = useRef(null);
 
-  const applyData = (payload) => {
-    setData(payload);
-    setLoading(false);
-  };
+  const sseOverview = useSSE('overview');
 
+  // Initial load + manual refresh
   useEffect(() => {
-    // Initial HTTP fetch so the page loads immediately
     setLoading(true);
     api.get('/overview/today')
-      .then(res => applyData(res.data))
+      .then(res => { setData(res.data); setLoading(false); })
       .catch(err => {
         toast(err.response?.data?.message || 'Failed to load overview');
         setLoading(false);
       });
-
-    // SSE stream for real-time push updates
-    const baseUrl = api.defaults.baseURL?.replace(/\/$/, '') || '';
-    const es = new EventSource(`${baseUrl}/overview/stream`, { withCredentials: true });
-    esRef.current = es;
-
-    es.onopen = () => setLive(true);
-    es.onmessage = (e) => {
-      try {
-        const payload = JSON.parse(e.data);
-        if (payload.success) applyData(payload);
-      } catch { /* ignore malformed */ }
-    };
-    es.onerror = () => setLive(false);
-
-    return () => {
-      es.close();
-      setLive(false);
-    };
   }, [refreshKey]);
+
+  // SSE push: merge fast-changing fields into existing data
+  useEffect(() => {
+    if (!sseOverview?.data) return;
+    const d = sseOverview.data;
+    setData(prev => prev ? {
+      ...prev,
+      stats:               { ...prev.stats, ...d.stats },
+      lateArrivals:        d.lateArrivals        ?? prev.lateArrivals,
+      attendanceBreakdown: d.attendanceBreakdown ?? prev.attendanceBreakdown,
+      currentlyWorking:    d.currentlyWorking    ?? prev.currentlyWorking,
+    } : null);
+  }, [sseOverview]);
 
   const { timeFormat } = useSettings();
   const fmt = dt => fmtTime(dt, timeFormat);
@@ -279,9 +269,9 @@ export default function Overview() {
             title="Daily Hours"
             subtitle="Last 14 days"
             action={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: live ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
-                <MdSignalWifi4Bar size={13} style={{ opacity: live ? 1 : 0.4 }} />
-                {live ? 'Live' : 'Connecting…'}
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: sseOverview ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
+                <MdSignalWifi4Bar size={13} style={{ opacity: sseOverview ? 1 : 0.4 }} />
+                {sseOverview ? 'Live' : 'Connecting…'}
               </div>
             }
           >

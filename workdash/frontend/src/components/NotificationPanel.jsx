@@ -4,6 +4,7 @@ import { MdNotifications, MdClose, MdWarning, MdError, MdInfo, MdRefresh, MdAcce
 import api from '../api/axios';
 import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
+import { useSSE } from '../context/SSEContext';
 
 const TYPE_CONFIG = {
   warning: { icon: MdWarning,  color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', dot: '#EF9F27' },
@@ -30,6 +31,7 @@ const NOTIF_ROUTE = {
 export default function NotificationPanel() {
   const { timeFormat } = useSettings();
   const navigate = useNavigate();
+  const sseNotif = useSSE('notifications');
   const [open, setOpen] = useState(false);
   const [notifications, setNotifications] = useState([]);
   const [total, setTotal] = useState(0);
@@ -45,19 +47,20 @@ export default function NotificationPanel() {
         setTotal(res.data.total || 0);
         setLastFetched(new Date());
       })
-      .catch(() => {
-        setNotifications([]);
-        setTotal(0);
-      })
+      .catch(() => { setNotifications([]); setTotal(0); })
       .finally(() => setLoading(false));
   };
 
-  // Fetch on mount and every 60s
+  // Initial fetch on mount
+  useEffect(() => { fetchNotifications(); }, []);
+
+  // SSE push — update badge + list without polling
   useEffect(() => {
-    fetchNotifications();
-    const t = setInterval(fetchNotifications, 60_000);
-    return () => clearInterval(t);
-  }, []);
+    if (!sseNotif?.data) return;
+    setNotifications(sseNotif.data.notifications || []);
+    setTotal(sseNotif.data.total || 0);
+    setLastFetched(new Date());
+  }, [sseNotif]);
 
   // Close on outside click
   useEffect(() => {
