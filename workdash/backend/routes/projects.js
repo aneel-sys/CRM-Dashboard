@@ -3,6 +3,18 @@ const router = express.Router();
 const { pool, tbl } = require('../db/connection');
 const { requireAuth } = require('../middleware/auth');
 
+// GET /api/projects/statuses — distinct status values
+router.get('/statuses', requireAuth, async (_req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT DISTINCT status FROM ${tbl('projects')} WHERE deleted_at IS NULL AND status IS NOT NULL ORDER BY status`
+    );
+    res.json({ success: true, statuses: rows.map(r => r.status) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/projects?status=active&search=
 router.get('/', requireAuth, async (req, res) => {
   try {

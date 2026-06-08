@@ -531,6 +531,13 @@ export default function Projects() {
   const [statusFilter, setStatusFilter] = useState('');
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState(null);
+  const [statuses, setStatuses] = useState([]);
+
+  useEffect(() => {
+    api.get('/projects/statuses')
+      .then(res => setStatuses(res.data.statuses || []))
+      .catch(() => {});
+  }, []);
 
   const fetchProjects = () => {
     setLoading(true);
@@ -560,10 +567,11 @@ export default function Projects() {
           <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Status</label>
           <select value={statusFilter} onChange={e => setStatusFilter(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
             <option value="">All Statuses</option>
-            <option value="in progress">In Progress</option>
-            <option value="active">Active</option>
-            <option value="completed">Completed</option>
-            <option value="on_hold">On Hold</option>
+            {statuses.map(s => (
+              <option key={s} value={s}>
+                {s.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase())}
+              </option>
+            ))}
           </select>
         </div>
         <div>
