@@ -34,11 +34,10 @@ router.get('/', requireAuth, async (req, res) => {
       [today]
     );
 
-    // Delay = (clock_in - shift_start) in minutes - late_mark_duration
-    // Both datetimes are UTC so no IST conversion needed
+    // Delay = minutes past shift start (Worksuite: late = clocked in after shift_start)
     const fallbackThresh = (() => {
       const [oh, om] = settings.officeStart.split(':').map(Number);
-      return oh * 60 + om + settings.lateMarkDuration;
+      return oh * 60 + om;
     })();
     lateRows.forEach(r => {
       if (r.clock_in_time && r.shift_start_time) {
@@ -46,8 +45,7 @@ router.get('/', requireAuth, async (req, res) => {
         const clockMins = clockInIST.getUTCHours() * 60 + clockInIST.getUTCMinutes();
         const ss = new Date(r.shift_start_time);
         const shiftMins = ss.getUTCHours() * 60 + ss.getUTCMinutes();
-        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
-        r.delay = Math.max(0, clockMins - shiftMins - lmDur);
+        r.delay = Math.max(0, clockMins - shiftMins);
       } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
         r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
@@ -200,7 +198,7 @@ router.get('/expanded', requireAuth, async (_req, res) => {
 
     const fallbackThresh = (() => {
       const [oh, om] = settings.officeStart.split(':').map(Number);
-      return oh * 60 + om + settings.lateMarkDuration;
+      return oh * 60 + om;
     })();
     lateRows.forEach(r => {
       if (r.clock_in_time && r.shift_start_time) {
@@ -208,8 +206,7 @@ router.get('/expanded', requireAuth, async (_req, res) => {
         const clockMins = clockInIST.getUTCHours() * 60 + clockInIST.getUTCMinutes();
         const ss = new Date(r.shift_start_time);
         const shiftMins = ss.getUTCHours() * 60 + ss.getUTCMinutes();
-        const lmDur = r.shift_late_mark != null ? r.shift_late_mark : settings.lateMarkDuration;
-        r.delay = Math.max(0, clockMins - shiftMins - lmDur);
+        r.delay = Math.max(0, clockMins - shiftMins);
       } else if (r.clock_in_time) {
         const local = new Date(new Date(r.clock_in_time).getTime() + IST_MS);
         r.delay = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThresh);
