@@ -242,39 +242,41 @@ export default function Overview() {
 
       {/* ── Greeting header ───────────────────────────────────────────── */}
       <div style={{
-        background: 'linear-gradient(135deg, #1D9E75 0%, #0f7a5a 100%)',
+        background: 'var(--card)',
         borderRadius: 14,
-        padding: '20px 28px',
+        borderLeft: '4px solid #1D9E75',
+        padding: '18px 24px',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
         flexWrap: 'wrap',
         gap: 12,
+        boxShadow: 'var(--card-shadow)',
       }}>
         <div>
-          <p style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0, lineHeight: 1.2 }}>
+          <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
             {getGreeting()}{user?.username ? `, ${user.username}` : ''}
           </p>
-          <p style={{ fontSize: 13, color: 'rgba(255,255,255,0.75)', margin: '4px 0 0' }}>
+          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
             {getFormattedDate()}
           </p>
         </div>
-        <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
           {[
-            { label: 'Present',  value: stats.present ?? '—', sub: `of ${stats.total ?? '—'}` },
-            { label: 'Late',     value: stats.late    ?? '—', sub: 'today'                    },
-            { label: 'On Leave', value: stats.onLeave ?? '—', sub: 'approved'                 },
+            { label: 'Present',  value: stats.present ?? '—', sub: `of ${stats.total ?? '—'}`, color: '#1D9E75' },
+            { label: 'Late',     value: stats.late    ?? '—', sub: 'today',                    color: '#EF9F27' },
+            { label: 'On Leave', value: stats.onLeave ?? '—', sub: 'approved',                 color: '#8B5CF6' },
           ].map(item => (
             <div key={item.label} style={{
-              background: 'rgba(255,255,255,0.15)',
               borderRadius: 10,
-              padding: '8px 16px',
+              padding: '8px 18px',
               textAlign: 'center',
-              backdropFilter: 'blur(4px)',
+              background: 'var(--bg)',
+              border: '1px solid var(--border)',
             }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: '#fff', margin: 0 }}>{item.value}</p>
-              <p style={{ fontSize: 11, color: 'rgba(255,255,255,0.7)', margin: 0 }}>{item.label}</p>
-              <p style={{ fontSize: 10, color: 'rgba(255,255,255,0.5)', margin: 0 }}>{item.sub}</p>
+              <p style={{ fontSize: 20, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
+              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>{item.label}</p>
+              <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.sub}</p>
             </div>
           ))}
         </div>
