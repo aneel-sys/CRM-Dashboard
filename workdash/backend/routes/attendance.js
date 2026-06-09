@@ -132,22 +132,26 @@ router.get('/export', requireAuth, async (req, res) => {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
     }
 
-    const fmtTime = dt => {
+    const IST_MS = 5.5 * 60 * 60 * 1000;
+    const fmtTimeIST = dt => {
       if (!dt) return '';
-      const d = new Date(dt);
-      const h = String(d.getHours()).padStart(2, '0');
-      const m = String(d.getMinutes()).padStart(2, '0');
+      const d = new Date(new Date(dt).getTime() + IST_MS);
+      const h = String(d.getUTCHours()).padStart(2, '0');
+      const m = String(d.getUTCMinutes()).padStart(2, '0');
       return `${h}:${m}`;
     };
+    // DD-MM-YYYY avoids Excel auto-converting the date to a serial number
+    const [dy, dm, dd] = date.split('-');
+    const dateLabel = `${dd}-${dm}-${dy}`;
 
     const headers = ['Name', 'Department', 'Designation', 'Date', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
     const csvRows = rows.map(r => [
       `"${r.name}"`,
       `"${r.department || ''}"`,
       `"${r.designation || ''}"`,
-      `"${date}"`,
-      `"${fmtTime(r.clock_in_time)}"`,
-      `"${fmtTime(r.clock_out_time)}"`,
+      `"${dateLabel}"`,
+      `"${fmtTimeIST(r.clock_in_time)}"`,
+      `"${fmtTimeIST(r.clock_out_time)}"`,
       r.delay_minutes > 0 ? r.delay_minutes : 0,
       r.hours_worked ? parseFloat(r.hours_worked).toFixed(1) : '0.0',
       `"${r.attendance_status}"`,
