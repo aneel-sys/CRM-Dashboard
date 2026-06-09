@@ -465,7 +465,7 @@ function ProjectDetail({ project, onBack }) {
             <ResponsiveContainer width="100%" height={Math.min(180, chartData.length * 32 + 20)}>
               <BarChart data={chartData} layout="vertical" margin={{ left: 0, right: 40, top: 0, bottom: 0 }}>
                 <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: 'var(--text)' }} width={80} axisLine={false} tickLine={false} />
+                <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: 'var(--text)' }} width={Math.min(200, Math.max(100, chartData.reduce((m, d) => Math.max(m, (d.name || '').length), 0) * 8))} axisLine={false} tickLine={false} />
                 <Tooltip formatter={v => [`${v}h`, 'Hours']} />
                 <Bar dataKey="hours" fill="var(--primary)" radius={[0, 4, 4, 0]} maxBarSize={20} />
               </BarChart>

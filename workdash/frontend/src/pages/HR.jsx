@@ -206,7 +206,7 @@ export default function HR() {
               <ResponsiveContainer width="100%" height={Math.max(200, headcount.length * 34)}>
                 <BarChart data={headcount} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }}>
                   <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
-                  <YAxis type="category" dataKey="department" tick={{ fontSize: 11, fill: 'var(--text)' }} axisLine={false} tickLine={false} width={110} />
+                  <YAxis type="category" dataKey="department" tick={{ fontSize: 11, fill: 'var(--text)' }} axisLine={false} tickLine={false} width={Math.min(200, Math.max(100, headcount.reduce((m, d) => Math.max(m, (d.department || '').length), 0) * 7))} />
                   <Tooltip formatter={v => [v, 'Employees']} cursor={{ fill: 'var(--bg)' }} />
                   <Bar dataKey="count" radius={[0, 4, 4, 0]} maxBarSize={18} label={{ position: 'right', fontSize: 11, fill: 'var(--text-muted)', formatter: v => v }}>
                     {headcount.map((_, i) => <Cell key={i} fill={DEPT_COLORS[i % DEPT_COLORS.length]} />)}

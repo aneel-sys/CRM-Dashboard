@@ -309,7 +309,7 @@ export default function ProjectDashboard() {
               <ResponsiveContainer width="100%" height={Math.max(160, hoursChart.length * 44)}>
                 <BarChart data={hoursChart} layout="vertical" margin={{ top: 0, right: 48, bottom: 0, left: 0 }}>
                   <XAxis type="number" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'var(--text)' }} axisLine={false} tickLine={false} width={130} />
+                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11, fill: 'var(--text)' }} axisLine={false} tickLine={false} width={Math.min(220, Math.max(130, hoursChart.reduce((m, d) => Math.max(m, (d.name || '').length), 0) * 7))} />
                   <Tooltip formatter={v => [`${v}h`, 'Hours']} cursor={{ fill: 'var(--bg)' }} />
                   <Bar dataKey="hours" radius={[0, 4, 4, 0]} maxBarSize={20}
                     label={{ position: 'right', fontSize: 11, fill: 'var(--text-muted)', formatter: v => `${v}h` }}>
