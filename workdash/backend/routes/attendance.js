@@ -132,7 +132,6 @@ router.get('/export', requireAuth, async (req, res) => {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
     }
 
-    const IST_MS = 5.5 * 60 * 60 * 1000;
     const fmtTimeIST = dt => {
       if (!dt) return '';
       const d = new Date(new Date(dt).getTime() + IST_MS);
