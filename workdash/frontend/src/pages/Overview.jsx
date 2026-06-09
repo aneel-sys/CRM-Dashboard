@@ -568,6 +568,86 @@ export default function Overview() {
         ))}
       </div>
 
+      {/* ── Currently Working + Department Breakdown ───────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        <div className="lg:col-span-2">
+          <SectionCard
+            title="Currently Working"
+            subtitle="Clocked in · not yet clocked out"
+            action={
+              <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                Live
+              </div>
+            }
+          >
+            {loading ? (
+              <div className="space-y-3">
+                <div className="skeleton h-12 w-20 rounded" />
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 rounded-lg" />)}
+              </div>
+            ) : (
+              <>
+                <p className="text-5xl font-black mb-4" style={{ color: '#1D9E75' }}>
+                  {currentlyWorking.count}
+                </p>
+                <div className="space-y-1.5">
+                  {currentlyWorking.list.length === 0 ? (
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
+                  ) : (
+                    currentlyWorking.list.map(emp => (
+                      <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+                        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                        <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
+                        <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
+                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
+                      </div>
+                    ))
+                  )}
+                  {currentlyWorking.count > currentlyWorking.list.length && (
+                    <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                      +{currentlyWorking.count - currentlyWorking.list.length} more
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+          </SectionCard>
+        </div>
+
+        <div className="lg:col-span-3">
+          <SectionCard title="Department Breakdown" subtitle="Today's attendance by team">
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
+              </div>
+            ) : deptBreakdown.length === 0 ? (
+              <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
+            ) : (
+              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
+                      <th key={h} style={{
+                        fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                        textTransform: 'uppercase', letterSpacing: '0.06em',
+                        textAlign: h === 'Department' ? 'left' : 'center',
+                        paddingBottom: 8,
+                      }}>{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptBreakdown.map(dept => <DeptRow key={dept.department} dept={dept} />)}
+                </tbody>
+              </table>
+            )}
+          </SectionCard>
+        </div>
+
+      </div>
+
       {/* ── NEW ROW: 30-day Attendance Trend + Project Health ──────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
@@ -866,90 +946,10 @@ export default function Overview() {
 
       </div>
 
-      {/* ── Currently Working + Department Breakdown ───────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        <div className="lg:col-span-2">
-          <SectionCard
-            title="Currently Working"
-            subtitle="Clocked in · not yet clocked out"
-            action={
-              <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                Live
-              </div>
-            }
-          >
-            {loading ? (
-              <div className="space-y-3">
-                <div className="skeleton h-12 w-20 rounded" />
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 rounded-lg" />)}
-              </div>
-            ) : (
-              <>
-                <p className="text-5xl font-black mb-4" style={{ color: '#1D9E75' }}>
-                  {currentlyWorking.count}
-                </p>
-                <div className="space-y-1.5">
-                  {currentlyWorking.list.length === 0 ? (
-                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
-                  ) : (
-                    currentlyWorking.list.map(emp => (
-                      <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-                        <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
-                        <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
-                      </div>
-                    ))
-                  )}
-                  {currentlyWorking.count > currentlyWorking.list.length && (
-                    <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                      +{currentlyWorking.count - currentlyWorking.list.length} more
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </SectionCard>
-        </div>
-
-        <div className="lg:col-span-3">
-          <SectionCard title="Department Breakdown" subtitle="Today's attendance by team">
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
-              </div>
-            ) : deptBreakdown.length === 0 ? (
-              <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
-                      <th key={h} style={{
-                        fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em',
-                        textAlign: h === 'Department' ? 'left' : 'center',
-                        paddingBottom: 8,
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {deptBreakdown.map(dept => <DeptRow key={dept.department} dept={dept} />)}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-        </div>
-
-      </div>
-
       {/* ── Attendance Heatmap + Leave Calendar ────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
 
-        <div className="lg:col-span-3">
+        <div>
           <SectionCard title="Attendance Heatmap" subtitle="Daily team presence — whole year">
             {heatmapLoading
               ? <div className="skeleton h-44 rounded" />
@@ -963,7 +963,7 @@ export default function Overview() {
           </SectionCard>
         </div>
 
-        <div className="lg:col-span-2">
+        <div>
           <SectionCard title="Leave Calendar" subtitle="Approved leaves — month view">
             {calLoading
               ? <div className="skeleton h-72 rounded" />
