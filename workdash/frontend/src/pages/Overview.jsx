@@ -568,10 +568,10 @@ export default function Overview() {
         ))}
       </div>
 
-      {/* ── Currently Working + Department Breakdown ───────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      {/* ── Currently Working · Department Breakdown · Today's Attendance ── */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        <div className="lg:col-span-2">
+        <div>
           <SectionCard
             title="Currently Working"
             subtitle="Clocked in · not yet clocked out"
@@ -616,7 +616,7 @@ export default function Overview() {
           </SectionCard>
         </div>
 
-        <div className="lg:col-span-3">
+        <div>
           <SectionCard title="Department Breakdown" subtitle="Today's attendance by team">
             {loading ? (
               <div className="space-y-3">
@@ -642,6 +642,28 @@ export default function Overview() {
                   {deptBreakdown.map(dept => <DeptRow key={dept.department} dept={dept} />)}
                 </tbody>
               </table>
+            )}
+          </SectionCard>
+        </div>
+
+        <div>
+          <SectionCard title="Today's Attendance" subtitle="Present · Late · Absent · On Leave">
+            {loading ? (
+              <div className="skeleton h-44 rounded" />
+            ) : donutData.length === 0 ? (
+              <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No attendance data</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={180}>
+                <PieChart>
+                  <Pie data={donutData} cx="50%" cy="45%" innerRadius={40} outerRadius={62} dataKey="value" paddingAngle={3}>
+                    {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [v, n]} />
+                  <Legend content={<DonutLegend />} />
+                </PieChart>
+              </ResponsiveContainer>
             )}
           </SectionCard>
         </div>
@@ -814,8 +836,8 @@ export default function Overview() {
           </SectionCard>
         </div>
 
-        {/* Daily Hours + Today's Attendance donut */}
-        <div className="lg:col-span-2 flex flex-col gap-4">
+        {/* Daily Hours */}
+        <div className="lg:col-span-2">
           <SectionCard
             title="Daily Hours"
             subtitle="Last 14 days"
@@ -833,33 +855,13 @@ export default function Overview() {
                 <p className="text-sm">No hours logged yet</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={120}>
+              <ResponsiveContainer width="100%" height={200}>
                 <BarChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
                   <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                   <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                   <Tooltip content={<DailyHoursTooltip />} cursor={{ fill: 'var(--bg)' }} />
                   <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
                 </BarChart>
-              </ResponsiveContainer>
-            )}
-          </SectionCard>
-
-          <SectionCard title="Today's Attendance">
-            {loading ? (
-              <div className="skeleton h-28 rounded" />
-            ) : donutData.length === 0 ? (
-              <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No attendance data</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={130}>
-                <PieChart>
-                  <Pie data={donutData} cx="50%" cy="45%" innerRadius={32} outerRadius={50} dataKey="value" paddingAngle={3}>
-                    {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v, n) => [v, n]} />
-                  <Legend content={<DonutLegend />} />
-                </PieChart>
               </ResponsiveContainer>
             )}
           </SectionCard>
