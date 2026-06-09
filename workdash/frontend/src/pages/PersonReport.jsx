@@ -7,6 +7,138 @@ import api from '../api/axios';
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const PROJ_COLORS = ['#1D9E75','#378ADD','#EF9F27','#E24B4A','#7C3AED','#EC4899','#0891B2'];
 
+function fmtLeaveDate(from, to) {
+  if (!from) return '—';
+  const f = new Date(from + 'T00:00:00');
+  const t = new Date(to + 'T00:00:00');
+  const opts = { day: '2-digit', month: 'short' };
+  if (!to || from === to) return f.toLocaleDateString('en-GB', opts);
+  return f.toLocaleDateString('en-GB', opts) + ' – ' + t.toLocaleDateString('en-GB', opts);
+}
+
+function LeaveHistory({ requests, year }) {
+  const STATUS = {
+    approved: { label: 'Approved', bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+    pending:  { label: 'Pending',  bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
+    rejected: { label: 'Rejected', bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
+  };
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <p className="section-title">Leave History · {year}</p>
+          <p className="section-sub">{requests.length} request{requests.length !== 1 ? 's' : ''} this year</p>
+        </div>
+      </div>
+
+      {requests.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-12" style={{ color: 'var(--text-muted)' }}>
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ marginBottom: 8, opacity: 0.25 }}>
+            <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          <p className="text-sm font-medium">No leave taken in {year}</p>
+        </div>
+      ) : (
+        <div style={{ overflowX: 'auto' }}>
+          <table className="data-table">
+            <thead>
+              <tr>
+                <th>Type</th>
+                <th>Period</th>
+                <th>Days</th>
+                <th>Reason</th>
+                <th>Paid</th>
+                <th>Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map(r => {
+                const s = STATUS[r.status] || STATUS.pending;
+                const typeColor = r.color || '#1D9E75';
+                const days = parseFloat(r.total_days) || 0;
+                const isHalf = days < 1;
+                return (
+                  <tr key={r.request_id}>
+                    <td>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+                        background: typeColor + '18', color: typeColor, border: `1px solid ${typeColor}33`,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {r.type_name || 'Leave'}
+                      </span>
+                    </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>
+                        {fmtLeaveDate(r.from_date, r.to_date)}
+                      </span>
+                      {isHalf && r.half_day_type && (
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 5 }}>
+                          ({r.half_day_type})
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
+                        {days % 1 === 0 ? days : days.toFixed(1)}d
+                      </span>
+                    </td>
+                    <td style={{ maxWidth: 240 }}>
+                      {r.reason ? (
+                        <span
+                          style={{ fontSize: 12, color: 'var(--text-secondary)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={r.reason}
+                        >
+                          {r.reason}
+                        </span>
+                      ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      )}
+                      {r.status === 'rejected' && r.reject_reason && (
+                        <span
+                          style={{ fontSize: 10, color: '#DC2626', display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={r.reject_reason}
+                        >
+                          Rejected: {r.reject_reason}
+                        </span>
+                      )}
+                      {r.status === 'approved' && r.approve_reason && (
+                        <span
+                          style={{ fontSize: 10, color: 'var(--text-muted)', display: 'block', marginTop: 2, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+                          title={r.approve_reason}
+                        >
+                          Note: {r.approve_reason}
+                        </span>
+                      )}
+                    </td>
+                    <td>
+                      {r.paid ? (
+                        <span style={{ fontSize: 11, fontWeight: 600, color: '#15803D' }}>Paid</span>
+                      ) : (
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Unpaid</span>
+                      )}
+                    </td>
+                    <td>
+                      <span style={{
+                        fontSize: 11, fontWeight: 600, padding: '2px 8px', borderRadius: 5,
+                        background: s.bg, color: s.color, border: `1px solid ${s.border}`,
+                        whiteSpace: 'nowrap',
+                      }}>
+                        {s.label}
+                      </span>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Avatar({ name, size = 64 }) {
   const initials = name
     ? name.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()
@@ -132,6 +264,7 @@ export default function PersonReport() {
           <div className="lg:col-span-2 skeleton h-[440px] rounded-xl" />
         </div>
       ) : report ? (
+        <>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           {/* Left: Charts */}
           <div className="lg:col-span-3 space-y-4">
@@ -330,6 +463,8 @@ export default function PersonReport() {
             </div>
           </div>
         </div>
+        <LeaveHistory requests={report.leaveRequests || []} year={year} />
+        </>
       ) : null}
     </div>
   );

@@ -156,6 +156,35 @@ router.get('/:id/report', requireAuth, async (req, res) => {
       } catch { projectHours = []; }
     }
 
+    // Leave requests for the year — grouped by unique_id so multi-day = one row
+    let leaveRequests = [];
+    try {
+      const [lr] = await pool.query(
+        `SELECT
+           COALESCE(l.unique_id, CAST(l.id AS CHAR)) as request_id,
+           MAX(lt.type_name) as type_name,
+           MAX(lt.color)     as color,
+           MIN(l.leave_date) as from_date,
+           MAX(l.leave_date) as to_date,
+           ROUND(SUM(CAST(l.duration AS DECIMAL(5,2))), 2) as total_days,
+           MAX(l.reason)         as reason,
+           MAX(l.status)         as status,
+           MAX(l.reject_reason)  as reject_reason,
+           MAX(l.approve_reason) as approve_reason,
+           MAX(l.paid)           as paid,
+           MAX(l.half_day_type)  as half_day_type,
+           MAX(l.created_at)     as applied_at
+         FROM ${tbl('leaves')} l
+         LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+         WHERE l.user_id = ?
+           AND YEAR(l.leave_date) = ?
+         GROUP BY COALESCE(l.unique_id, CAST(l.id AS CHAR))
+         ORDER BY from_date DESC`,
+        [id, year]
+      );
+      leaveRequests = lr;
+    } catch {}
+
     res.json({
       success: true,
       employee,
@@ -175,6 +204,7 @@ router.get('/:id/report', requireAuth, async (req, res) => {
       },
       dailyHours,
       projectHours,
+      leaveRequests,
     });
   } catch (err) {
     console.error('Employee report error:', err.message);
