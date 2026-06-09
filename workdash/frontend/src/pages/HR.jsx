@@ -257,47 +257,64 @@ export default function HR() {
         <div className="lg:col-span-3">
           <SectionCard
             title="Leave Balance Overview"
-            subtitle="Utilized vs allocated across all employees"
+            subtitle="Average utilization per employee · current year"
             action={<MdBeachAccess size={16} style={{ color: 'var(--text-muted)' }} />}
           >
             {summaryLoading ? (
-              <div className="space-y-4">
-                {[1, 2, 3].map(i => <div key={i} className="skeleton rounded" style={{ height: 52 }} />)}
+              <div className="grid grid-cols-3 gap-3">
+                {[1, 2, 3].map(i => <div key={i} className="skeleton rounded-xl" style={{ height: 130 }} />)}
               </div>
             ) : leaveBalances.length === 0 ? (
               <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
                 <p className="text-sm">No leave data available</p>
               </div>
             ) : (
-              <div className="space-y-5">
+              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${leaveBalances.length}, 1fr)`, gap: 12 }}>
                 {leaveBalances.map(lb => {
-                  const used      = parseFloat(lb.total_used)      || 0;
-                  const quota     = parseFloat(lb.total_quota)     || 0;
-                  const remaining = parseFloat(lb.total_remaining) || 0;
-                  const pct       = quota > 0 ? Math.min(100, Math.round((used / quota) * 100)) : 0;
+                  const empCount  = Number(lb.employees) || 1;
+                  const totalUsed = parseFloat(lb.total_used) || 0;
+                  const totalQuota= parseFloat(lb.total_quota) || 0;
+                  const avgUsed   = empCount > 0 ? totalUsed / empCount : 0;
+                  const quota     = parseFloat(lb.quota_per_person) || 0;
+                  const pct       = quota > 0 ? Math.min(100, Math.round((avgUsed / quota) * 100)) : 0;
                   const barColor  = lb.color || '#1D9E75';
+                  const avgRemain = quota - avgUsed;
                   return (
-                    <div key={lb.id}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span style={{ width: 10, height: 10, borderRadius: '50%', background: barColor, display: 'inline-block', flexShrink: 0 }} />
-                          <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text)' }}>{lb.type_name}</span>
-                          <span style={{ fontSize: 10, color: 'var(--text-muted)', background: 'var(--bg)', border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px' }}>
-                            {lb.quota_per_person}d / person
-                          </span>
-                        </div>
-                        <span style={{ fontSize: 12, color: 'var(--text-secondary)', fontWeight: 500 }}>
-                          {used} / {quota} days
+                    <div key={lb.id} style={{
+                      border: '1px solid var(--border)', borderRadius: 14,
+                      padding: '18px 16px', background: 'var(--bg)',
+                      borderTop: `3px solid ${barColor}`,
+                    }}>
+                      {/* Type name */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
+                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: barColor, flexShrink: 0 }} />
+                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                          {lb.type_name}
                         </span>
                       </div>
-                      <div style={{ height: 8, borderRadius: 4, background: 'var(--border)', overflow: 'hidden' }}>
-                        <div style={{ height: '100%', borderRadius: 4, background: barColor, width: `${pct}%`, transition: 'width 0.6s ease' }} />
+                      {/* Big avg number */}
+                      <p style={{ fontSize: 32, fontWeight: 800, color: barColor, margin: '0 0 1px', lineHeight: 1 }}>
+                        {avgUsed.toFixed(1)}
+                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>d</span>
+                      </p>
+                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 14px' }}>
+                        avg used · {quota}d allocated
+                      </p>
+                      {/* Progress bar */}
+                      <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', marginBottom: 8 }}>
+                        <div style={{ height: '100%', borderRadius: 3, background: barColor, width: `${pct}%`, transition: 'width 0.6s ease' }} />
                       </div>
-                      <div className="flex justify-between mt-1.5">
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{pct}% utilized · {Number(lb.employees)} employees</span>
-                        <span style={{ fontSize: 11, fontWeight: pct > 80 ? 600 : 400, color: pct > 80 ? '#E24B4A' : 'var(--text-muted)' }}>
-                          {remaining} days remaining
+                      {/* Bottom stats */}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>{pct}%</span>
+                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                          {avgRemain > 0 ? `${avgRemain.toFixed(1)}d left avg` : 'fully used'}
                         </span>
+                      </div>
+                      {/* Total across team */}
+                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
+                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Total used</span>
+                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)' }}>{totalUsed} / {totalQuota}d</span>
                       </div>
                     </div>
                   );

@@ -226,4 +226,26 @@ router.get('/expiring', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/hr/leave-balance/:userId — per-employee leave quota
+router.get('/leave-balance/:userId', requireAuth, async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const [rows] = await pool.query(
+      `SELECT lt.id, lt.type_name, lt.color, lt.no_of_leaves as quota,
+              COALESCE(elq.no_of_leaves, lt.no_of_leaves)  as allocated,
+              COALESCE(elq.leaves_used, 0)                 as used,
+              COALESCE(elq.leaves_remaining, lt.no_of_leaves) as remaining
+       FROM ${tbl('leave_types')} lt
+       LEFT JOIN ${tbl('employee_leave_quotas')} elq
+         ON elq.leave_type_id = lt.id AND elq.user_id = ?
+       WHERE lt.deleted_at IS NULL
+       ORDER BY lt.id`,
+      [userId]
+    );
+    res.json({ success: true, leaveBalance: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;

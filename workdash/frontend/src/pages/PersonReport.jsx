@@ -42,6 +42,7 @@ export default function PersonReport() {
   const [year, setYear] = useState(now.getFullYear());
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [leaveBalance, setLeaveBalance] = useState([]);
 
   useEffect(() => {
     api.get('/employees')
@@ -62,7 +63,14 @@ export default function PersonReport() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { if (selectedId) loadReport(); }, [selectedId, refreshKey]);
+  useEffect(() => {
+    if (selectedId) {
+      loadReport();
+      api.get(`/hr/leave-balance/${selectedId}`)
+        .then(res => setLeaveBalance(res.data.leaveBalance || []))
+        .catch(() => setLeaveBalance([]));
+    }
+  }, [selectedId, refreshKey]);
 
   const stats = report?.stats || {};
   const emp   = report?.employee || {};
@@ -262,6 +270,44 @@ export default function PersonReport() {
                     </div>
                   ))}
                 </div>
+
+                {/* Leave Balance */}
+                {leaveBalance.length > 0 && (
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider mb-3" style={{ color: 'var(--text-muted)' }}>
+                      Leave Balance · This Year
+                    </p>
+                    <div className="space-y-3">
+                      {leaveBalance.map(lb => {
+                        const used      = parseFloat(lb.used) || 0;
+                        const allocated = parseFloat(lb.allocated) || parseFloat(lb.quota) || 0;
+                        const remaining = parseFloat(lb.remaining) || 0;
+                        const pct       = allocated > 0 ? Math.min(100, Math.round((used / allocated) * 100)) : 0;
+                        const barColor  = lb.color || '#1D9E75';
+                        return (
+                          <div key={lb.id}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                                <span style={{ width: 7, height: 7, borderRadius: '50%', background: barColor, flexShrink: 0 }} />
+                                <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)' }}>{lb.type_name}</span>
+                              </div>
+                              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+                                <strong style={{ color: barColor }}>{used}</strong> / {allocated}d
+                              </span>
+                            </div>
+                            <div style={{ height: 5, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', marginBottom: 3 }}>
+                              <div style={{ height: '100%', borderRadius: 3, background: barColor, width: `${pct}%`, transition: 'width 0.5s ease' }} />
+                            </div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{pct}% used</span>
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{remaining}d remaining</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           </div>
