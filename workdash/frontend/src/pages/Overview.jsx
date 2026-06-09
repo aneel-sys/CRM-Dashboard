@@ -121,7 +121,7 @@ function SectionCard({ title, subtitle, children, action, className = '' }) {
         </div>
         {action}
       </div>
-      <div className="p-5 flex-1">{children}</div>
+      <div className="p-5 flex-1 flex flex-col">{children}</div>
     </div>
   );
 }
@@ -263,7 +263,7 @@ function AttendanceHeatmap({ data, total, year, onYearChange }) {
   const cy = new Date().getFullYear();
 
   return (
-    <div>
+    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
           <button onClick={() => onYearChange(year - 1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
@@ -655,15 +655,17 @@ export default function Overview() {
                 <p className="text-sm">No attendance data</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={180}>
-                <PieChart>
-                  <Pie data={donutData} cx="50%" cy="45%" innerRadius={40} outerRadius={62} dataKey="value" paddingAngle={3}>
-                    {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
-                  </Pie>
-                  <Tooltip formatter={(v, n) => [v, n]} />
-                  <Legend content={<DonutLegend />} />
-                </PieChart>
-              </ResponsiveContainer>
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 220 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}>
+                      {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [v, n]} />
+                    <Legend content={<DonutLegend />} />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </SectionCard>
         </div>
