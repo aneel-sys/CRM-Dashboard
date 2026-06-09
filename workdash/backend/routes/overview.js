@@ -292,14 +292,14 @@ router.get('/today', requireAuth, async (req, res) => {
 router.get('/project-health', requireAuth, async (req, res) => {
   try {
     const [rows] = await pool.query(
-      `SELECT DATEDIFF(p.deadline, CURDATE()) as days_remaining
+      `SELECT DATEDIFF(p.deadline, CURDATE()) as days_remaining, p.deadline
        FROM ${tbl('projects')} p
        WHERE p.deleted_at IS NULL
-         AND p.status NOT IN ('finished', 'cancelled')
-         AND p.deadline IS NOT NULL`
+         AND p.status NOT IN ('completed', 'canceled', 'finished', 'cancelled')`
     );
     let onTrack = 0, atRisk = 0, overdue = 0;
     rows.forEach(r => {
+      if (!r.deadline) { onTrack++; return; }
       const d = Number(r.days_remaining);
       if (d < 0) overdue++;
       else if (d <= 7) atRisk++;
