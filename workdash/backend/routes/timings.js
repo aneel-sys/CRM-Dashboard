@@ -11,7 +11,7 @@ async function queryTimelogs(pool, tbl, extraWhere, params) {
       `SELECT tl.id, u.id as user_id, u.name as employee_name,
               p.project_name, t.heading as task_name,
               tl.total_hours, tl.memo as notes,
-              DATE(tl.created_at) as log_date, tl.created_at
+              DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
        FROM ${tbl(TIMELOGS_TABLE)} tl
        JOIN ${tbl('users')} u ON u.id = tl.user_id
        LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
@@ -26,7 +26,7 @@ async function queryTimelogs(pool, tbl, extraWhere, params) {
       `SELECT tl.id, u.id as user_id, u.name as employee_name,
               p.project_name, t.heading as task_name,
               tl.total_hours, tl.memo as notes,
-              DATE(tl.created_at) as log_date, tl.created_at
+              DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
        FROM ${tbl('timelogs')} tl
        JOIN ${tbl('users')} u ON u.id = tl.user_id
        LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id

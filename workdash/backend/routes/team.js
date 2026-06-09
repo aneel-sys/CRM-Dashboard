@@ -13,7 +13,8 @@ router.get('/', requireAuth, async (req, res) => {
 
     const today = new Date().toISOString().slice(0, 10);
 
-    const params = [month, year, today];
+    // params order must match the 4 ?s in SELECT before WHERE, then dept/search
+    const params = [month, year, today, today];
     let deptFilter = '';
     if (departmentId) {
       deptFilter = 'AND ed.department_id = ?';
@@ -49,7 +50,7 @@ router.get('/', requireAuth, async (req, res) => {
        ${deptFilter} ${searchFilter}
        GROUP BY u.id, u.name, u.email, d.team_name, ds.name, u.status
        ORDER BY u.name`,
-      [...params, today]
+      params
     );
 
     // Hours per user this month
