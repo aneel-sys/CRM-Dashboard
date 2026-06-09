@@ -288,4 +288,77 @@ router.get('/today', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/overview/project-health
+router.get('/project-health', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT DATEDIFF(p.deadline, CURDATE()) as days_remaining
+       FROM ${tbl('projects')} p
+       WHERE p.deleted_at IS NULL
+         AND p.status NOT IN ('finished', 'cancelled')
+         AND p.deadline IS NOT NULL`
+    );
+    let onTrack = 0, atRisk = 0, overdue = 0;
+    rows.forEach(r => {
+      const d = Number(r.days_remaining);
+      if (d < 0) overdue++;
+      else if (d <= 7) atRisk++;
+      else onTrack++;
+    });
+    res.json({ success: true, onTrack, atRisk, overdue, total: rows.length });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/overview/top-performers
+router.get('/top-performers', requireAuth, async (req, res) => {
+  try {
+    let tlTable = 'project_time_logs';
+    for (const t of ['project_time_logs', 'timelogs']) {
+      try { await pool.query(`SELECT 1 FROM ${tbl(t)} LIMIT 1`); tlTable = t; break; } catch {}
+    }
+
+    const [rows] = await pool.query(
+      `SELECT u.id, u.name,
+              ROUND(COALESCE(SUM(tl.total_hours), 0), 1) as total_hours,
+              COUNT(DISTINCT DATE(a.clock_in_time)) as days_present,
+              COUNT(DISTINCT CASE WHEN a.late = 'yes' THEN DATE(a.clock_in_time) END) as days_late
+       FROM ${tbl('users')} u
+       LEFT JOIN ${tbl(tlTable)} tl ON tl.user_id = u.id
+         AND MONTH(tl.created_at) = MONTH(CURDATE()) AND YEAR(tl.created_at) = YEAR(CURDATE())
+       LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
+         AND MONTH(a.clock_in_time) = MONTH(CURDATE()) AND YEAR(a.clock_in_time) = YEAR(CURDATE())
+       WHERE u.status = 'active'
+       GROUP BY u.id, u.name
+       HAVING total_hours > 0
+       ORDER BY total_hours DESC
+       LIMIT 5`
+    );
+
+    // Working days so far this month (Mon–Sat)
+    const now = new Date();
+    const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+    let workingDays = 0;
+    const d = new Date(firstDay);
+    while (d <= now) {
+      if (d.getDay() !== 0) workingDays++;
+      d.setDate(d.getDate() + 1);
+    }
+
+    const performers = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      total_hours: parseFloat(r.total_hours) || 0,
+      days_present: Number(r.days_present) || 0,
+      days_late: Number(r.days_late) || 0,
+      attendance_pct: workingDays > 0 ? Math.round((Number(r.days_present) / workingDays) * 100) : 0,
+    }));
+
+    res.json({ success: true, performers, workingDays });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;
