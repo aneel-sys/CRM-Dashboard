@@ -212,6 +212,209 @@ const DonutLegend = ({ payload }) => (
   </div>
 );
 
+// ─── Attendance Heatmap ────────────────────────────────────────────────────
+
+const HEAT_MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const HEAT_MONTHS_FULL = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+function heatColor(pct) {
+  if (pct === 0)   return '#FECACA';
+  if (pct < 40)    return '#FEE2E2';
+  if (pct < 60)    return '#FEF3C7';
+  if (pct < 75)    return '#D1FAE5';
+  if (pct < 90)    return '#6EE7B7';
+  return '#1D9E75';
+}
+
+function AttendanceHeatmap({ data, total, year, onYearChange }) {
+  const map = {};
+  (data || []).forEach(d => { map[d.date] = d; });
+
+  const today = new Date().toISOString().slice(0, 10);
+  const weeks = [];
+  const monthLabels = {};
+
+  // First Monday on or before Jan 1
+  const jan1 = new Date(year, 0, 1);
+  const isoOffset = (jan1.getDay() + 6) % 7;
+  const cur = new Date(year, 0, 1 - isoOffset);
+  let lastLabelMonth = -1;
+
+  while (true) {
+    const week = [];
+    for (let d = 0; d < 7; d++) {
+      const inYear = cur.getFullYear() === year;
+      const ds = inYear
+        ? `${year}-${String(cur.getMonth() + 1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`
+        : null;
+      week.push(ds);
+      cur.setDate(cur.getDate() + 1);
+    }
+    const first = week.find(d => d !== null);
+    if (first) {
+      const m = new Date(first + 'T00:00:00').getMonth();
+      if (m !== lastLabelMonth) { monthLabels[weeks.length] = HEAT_MONTHS[m]; lastLabelMonth = m; }
+    }
+    weeks.push(week);
+    if (cur.getFullYear() > year || weeks.length >= 54) break;
+  }
+
+  const CELL = 12, GAP = 2;
+  const cy = new Date().getFullYear();
+
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, flexWrap: 'wrap', gap: 8 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <button onClick={() => onYearChange(year - 1)} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+          <span style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', minWidth: 36, textAlign: 'center' }}>{year}</span>
+          <button onClick={() => onYearChange(year + 1)} disabled={year >= cy} style={{ width: 24, height: 24, borderRadius: 6, border: '1px solid var(--border)', background: 'var(--bg)', cursor: year >= cy ? 'not-allowed' : 'pointer', fontSize: 14, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: year >= cy ? 0.35 : 1 }}>›</button>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 3 }}>Low</span>
+          {['#F3F4F6','#FEE2E2','#FEF3C7','#D1FAE5','#6EE7B7','#1D9E75'].map((c, i) => (
+            <div key={i} style={{ width: CELL, height: CELL, borderRadius: 3, background: c, border: '1px solid rgba(0,0,0,0.07)' }} />
+          ))}
+          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 3 }}>High</span>
+        </div>
+      </div>
+
+      <div style={{ overflowX: 'auto', paddingBottom: 4 }}>
+        <div style={{ display: 'inline-flex', flexDirection: 'column' }}>
+          {/* Month labels */}
+          <div style={{ display: 'flex', marginLeft: 22, marginBottom: 3 }}>
+            {weeks.map((_, wi) => (
+              <div key={wi} style={{ width: CELL + GAP, flexShrink: 0, fontSize: 9, fontWeight: 600, color: 'var(--text-muted)', overflow: 'visible', whiteSpace: 'nowrap' }}>
+                {monthLabels[wi] || ''}
+              </div>
+            ))}
+          </div>
+          {/* Grid */}
+          <div style={{ display: 'flex', gap: 0 }}>
+            {/* Day labels — show M W F S */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, marginRight: 4 }}>
+              {['M','','W','','F','','S'].map((d, i) => (
+                <div key={i} style={{ width: 16, height: CELL, fontSize: 9, color: 'var(--text-muted)', display: 'flex', alignItems: 'center', justifyContent: 'flex-end' }}>{d}</div>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: GAP }}>
+              {weeks.map((week, wi) => (
+                <div key={wi} style={{ display: 'flex', flexDirection: 'column', gap: GAP }}>
+                  {week.map((date, di) => {
+                    const isSun   = di === 6;
+                    const entry   = date ? map[date] : null;
+                    const isFuture = date && date > today;
+                    const color = !date ? 'transparent'
+                      : isFuture   ? '#F3F4F6'
+                      : entry      ? heatColor(entry.pct)
+                      : isSun      ? '#F9FAFB'
+                      : '#F3F4F6';
+                    const tip = entry
+                      ? `${date}  ${entry.present}/${total} present (${entry.pct}%)`
+                      : date || '';
+                    return (
+                      <div key={di} title={tip} style={{
+                        width: CELL, height: CELL, borderRadius: 3,
+                        background: color,
+                        border: date && !isFuture ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                        flexShrink: 0,
+                      }} />
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {total > 0 && (
+        <p style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 8 }}>
+          {data.length} days with data · {total} active employees
+        </p>
+      )}
+    </div>
+  );
+}
+
+// ─── Leave Calendar ────────────────────────────────────────────────────────
+
+function LeaveCalendar({ leaves, year, month, onPrev, onNext }) {
+  const byDate = {};
+  (leaves || []).forEach(l => {
+    if (!byDate[l.date]) byDate[l.date] = [];
+    byDate[l.date].push(l);
+  });
+
+  const firstDay   = new Date(year, month - 1, 1).getDay();
+  const daysInMonth = new Date(year, month, 0).getDate();
+  const today       = new Date().toISOString().slice(0, 10);
+
+  const cells = Array(firstDay).fill(null);
+  for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const uniqueOnLeave = new Set((leaves || []).map(l => l.name)).size;
+
+  return (
+    <div>
+      {/* Nav */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 10 }}>
+        <button onClick={onPrev} style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
+        <div style={{ textAlign: 'center' }}>
+          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', margin: 0 }}>{HEAT_MONTHS_FULL[month - 1]} {year}</p>
+          <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
+            {uniqueOnLeave > 0 ? `${uniqueOnLeave} employee${uniqueOnLeave !== 1 ? 's' : ''} on leave` : 'No approved leaves'}
+          </p>
+        </div>
+        <button onClick={onNext} style={{ width: 28, height: 28, borderRadius: 7, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', fontSize: 15, color: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+      </div>
+
+      {/* Day headers */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2, marginBottom: 3 }}>
+        {['Su','Mo','Tu','We','Th','Fr','Sa'].map(d => (
+          <div key={d} style={{ textAlign: 'center', fontSize: 9, fontWeight: 700, color: 'var(--text-muted)', padding: '3px 0' }}>{d}</div>
+        ))}
+      </div>
+
+      {/* Calendar cells */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 2 }}>
+        {cells.map((day, i) => {
+          if (!day) return <div key={i} style={{ minHeight: 46 }} />;
+          const ds  = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+          const dl  = byDate[ds] || [];
+          const isToday = ds === today;
+          const isWeekend = i % 7 === 0 || i % 7 === 6;
+          return (
+            <div key={i} style={{
+              minHeight: 46, padding: '3px 4px', overflow: 'hidden',
+              background: isToday ? 'rgba(29,158,117,0.09)' : isWeekend ? 'var(--bg)' : 'var(--card)',
+              borderRadius: 6,
+              border: `1px solid ${isToday ? '#1D9E75' : 'var(--border)'}`,
+            }}>
+              <div style={{ fontSize: 10, fontWeight: isToday ? 800 : 500, color: isToday ? '#1D9E75' : isWeekend ? 'var(--text-muted)' : 'var(--text)', marginBottom: 2 }}>{day}</div>
+              {dl.slice(0, 2).map((l, li) => {
+                const c = l.color || '#1D9E75';
+                return (
+                  <div key={li} title={`${l.name}${l.type_name ? ' — ' + l.type_name : ''}`} style={{
+                    fontSize: 8, fontWeight: 600, padding: '1px 3px', marginBottom: 1,
+                    background: c + '22', color: c, borderLeft: `2px solid ${c}`,
+                    borderRadius: '0 3px 3px 0',
+                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                  }}>
+                    {l.name.split(' ')[0]}
+                  </div>
+                );
+              })}
+              {dl.length > 2 && <div style={{ fontSize: 8, color: 'var(--text-muted)', fontWeight: 600 }}>+{dl.length - 2}</div>}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function Overview() {
@@ -230,6 +433,15 @@ export default function Overview() {
   const [healthLoading, setHealthLoading]   = useState(true);
   const [performers, setPerformers]         = useState([]);
   const [perfLoading, setPerfLoading]       = useState(true);
+
+  const _now = new Date();
+  const [heatmapYear,    setHeatmapYear]    = useState(_now.getFullYear());
+  const [heatmap,        setHeatmap]        = useState({ data: [], total: 0 });
+  const [heatmapLoading, setHeatmapLoading] = useState(true);
+  const [calMonth,       setCalMonth]       = useState(_now.getMonth() + 1);
+  const [calYear,        setCalYear]        = useState(_now.getFullYear());
+  const [calLeaves,      setCalLeaves]      = useState([]);
+  const [calLoading,     setCalLoading]     = useState(true);
 
   const sseOverview = useSSE('overview');
 
@@ -280,6 +492,33 @@ export default function Overview() {
       .catch(() => setPerformers([]))
       .finally(() => setPerfLoading(false));
   }, [refreshKey]);
+
+  // Attendance heatmap
+  useEffect(() => {
+    setHeatmapLoading(true);
+    api.get(`/overview/heatmap?year=${heatmapYear}`)
+      .then(r => setHeatmap({ data: r.data.data || [], total: r.data.total || 0 }))
+      .catch(() => {})
+      .finally(() => setHeatmapLoading(false));
+  }, [heatmapYear]);
+
+  // Leave calendar
+  useEffect(() => {
+    setCalLoading(true);
+    api.get(`/overview/leave-calendar?year=${calYear}&month=${calMonth}`)
+      .then(r => setCalLeaves(r.data.leaves || []))
+      .catch(() => setCalLeaves([]))
+      .finally(() => setCalLoading(false));
+  }, [calYear, calMonth]);
+
+  const prevCalMonth = () => {
+    if (calMonth === 1) { setCalMonth(12); setCalYear(y => y - 1); }
+    else setCalMonth(m => m - 1);
+  };
+  const nextCalMonth = () => {
+    if (calMonth === 12) { setCalMonth(1); setCalYear(y => y + 1); }
+    else setCalMonth(m => m + 1);
+  };
 
   const stats            = data?.stats || {};
   const currentlyWorking = data?.currentlyWorking || { count: 0, list: [] };
@@ -702,6 +941,40 @@ export default function Overview() {
                 </tbody>
               </table>
             )}
+          </SectionCard>
+        </div>
+
+      </div>
+
+      {/* ── Attendance Heatmap + Leave Calendar ────────────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        <div className="lg:col-span-3">
+          <SectionCard title="Attendance Heatmap" subtitle="Daily team presence — whole year">
+            {heatmapLoading
+              ? <div className="skeleton h-44 rounded" />
+              : <AttendanceHeatmap
+                  data={heatmap.data}
+                  total={heatmap.total}
+                  year={heatmapYear}
+                  onYearChange={setHeatmapYear}
+                />
+            }
+          </SectionCard>
+        </div>
+
+        <div className="lg:col-span-2">
+          <SectionCard title="Leave Calendar" subtitle="Approved leaves — month view">
+            {calLoading
+              ? <div className="skeleton h-72 rounded" />
+              : <LeaveCalendar
+                  leaves={calLeaves}
+                  year={calYear}
+                  month={calMonth}
+                  onPrev={prevCalMonth}
+                  onNext={nextCalMonth}
+                />
+            }
           </SectionCard>
         </div>
 

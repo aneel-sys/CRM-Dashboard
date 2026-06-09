@@ -361,4 +361,58 @@ router.get('/top-performers', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/overview/heatmap?year=YYYY — full-year daily attendance density
+router.get('/heatmap', requireAuth, async (req, res) => {
+  try {
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const [[{ total }]] = await pool.query(
+      `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
+    );
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(DATE(clock_in_time), '%Y-%m-%d') as date,
+              COUNT(DISTINCT user_id) as present
+       FROM ${tbl('attendances')}
+       WHERE YEAR(clock_in_time) = ?
+       GROUP BY DATE(clock_in_time)
+       ORDER BY date ASC`,
+      [year]
+    );
+    const data = rows.map(r => ({
+      date: String(r.date).slice(0, 10),
+      present: Number(r.present),
+      pct: Number(total) > 0 ? Math.round((Number(r.present) / Number(total)) * 100) : 0,
+    }));
+    res.json({ success: true, data, total: Number(total), year });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/overview/leave-calendar?year=YYYY&month=M — approved leaves for calendar
+router.get('/leave-calendar', requireAuth, async (req, res) => {
+  try {
+    const now   = new Date();
+    const year  = parseInt(req.query.year)  || now.getFullYear();
+    const month = parseInt(req.query.month) || now.getMonth() + 1;
+    let leaves = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT DATE_FORMAT(l.leave_date, '%Y-%m-%d') as date,
+                u.name, lt.type_name, lt.color, l.duration
+         FROM ${tbl('leaves')} l
+         JOIN ${tbl('users')} u ON u.id = l.user_id
+         LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+         WHERE YEAR(l.leave_date) = ? AND MONTH(l.leave_date) = ?
+           AND l.status = 'approved'
+         ORDER BY l.leave_date ASC, u.name ASC`,
+        [year, month]
+      );
+      leaves = rows;
+    } catch {}
+    res.json({ success: true, leaves, year, month });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 module.exports = router;
