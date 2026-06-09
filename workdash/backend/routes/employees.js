@@ -1,7 +1,6 @@
 const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
-const { getOfficeStartTime } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
 // GET /api/employees
@@ -31,7 +30,6 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     const { id } = req.params;
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
-    const officeStart = await getOfficeStartTime();
 
     // Fetch which days the office is open (Worksuite: 1=Mon…7=Sun → JS getDay: 0=Sun,1=Mon…6=Sat)
     let officeDays = [1, 2, 3, 4, 5]; // Mon-Fri fallback
@@ -75,20 +73,20 @@ router.get('/:id/report', requireAuth, async (req, res) => {
       if (todayRow) todayStatus = todayRow.late === 'yes' ? 'Late' : 'Present';
     } catch {}
 
-    // Attendance records for the month
+    // Attendance records for the month — times converted to IST (+5:30 = +19800s)
     const [attendanceRows] = await pool.query(
-      `SELECT DATE(clock_in_time) as date,
+      `SELECT DATE(DATE_ADD(clock_in_time, INTERVAL 19800 SECOND)) as date,
               clock_in_time,
               clock_out_time,
-              TIME(clock_in_time) as clock_in,
-              TIME(clock_out_time) as clock_out,
-              CASE WHEN TIME(clock_in_time) > ? THEN 1 ELSE 0 END as is_late,
+              TIME_FORMAT(DATE_ADD(clock_in_time,  INTERVAL 19800 SECOND), '%H:%i') as clock_in,
+              TIME_FORMAT(DATE_ADD(clock_out_time, INTERVAL 19800 SECOND), '%H:%i') as clock_out,
+              CASE WHEN late = 'yes' THEN 1 ELSE 0 END as is_late,
               ROUND(TIMESTAMPDIFF(MINUTE, clock_in_time, COALESCE(clock_out_time, NOW())) / 60, 2) as hours
        FROM ${tbl('attendances')}
        WHERE user_id = ?
          AND MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
        ORDER BY clock_in_time`,
-      [officeStart, id, month, year]
+      [id, month, year]
     );
 
     // Leave days this month

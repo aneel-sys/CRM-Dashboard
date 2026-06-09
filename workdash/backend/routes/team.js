@@ -74,8 +74,8 @@ router.get('/', requireAuth, async (req, res) => {
     try {
       const [rows] = await pool.query(
         `SELECT user_id,
-                TIME_FORMAT(SEC_TO_TIME(AVG(TIME_TO_SEC(TIME(clock_in_time)))), '%H:%i') as avg_clock_in,
-                TIME_FORMAT(SEC_TO_TIME(AVG(TIME_TO_SEC(TIME(shift_start_time)))), '%H:%i') as avg_shift_start
+                TIME_FORMAT(SEC_TO_TIME(MOD(AVG(TIME_TO_SEC(DATE_ADD(clock_in_time,  INTERVAL 19800 SECOND))), 86400)), '%H:%i') as avg_clock_in,
+                TIME_FORMAT(SEC_TO_TIME(MOD(AVG(TIME_TO_SEC(DATE_ADD(shift_start_time, INTERVAL 19800 SECOND))), 86400)), '%H:%i') as avg_shift_start
          FROM ${tbl('attendances')}
          WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
            AND clock_in_time IS NOT NULL
