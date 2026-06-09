@@ -111,17 +111,17 @@ function GreetingHeader({ stats, loading, username }) {
   );
 }
 
-function SectionCard({ title, subtitle, children, action }) {
+function SectionCard({ title, subtitle, children, action, className = '' }) {
   return (
-    <div className="card overflow-hidden">
-      <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+    <div className={`card overflow-hidden h-full flex flex-col ${className}`}>
+      <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
         <div>
           <p className="section-title">{title}</p>
           {subtitle && <p className="section-sub">{subtitle}</p>}
         </div>
         {action}
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-5 flex-1">{children}</div>
     </div>
   );
 }
@@ -571,7 +571,7 @@ export default function Overview() {
       {/* ── Currently Working · Department Breakdown · Today's Attendance ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
 
-        <div>
+        <div className="h-full">
           <SectionCard
             title="Currently Working"
             subtitle="Clocked in · not yet clocked out"
@@ -616,7 +616,7 @@ export default function Overview() {
           </SectionCard>
         </div>
 
-        <div>
+        <div className="h-full">
           <SectionCard title="Department Breakdown" subtitle="Today's attendance by team">
             {loading ? (
               <div className="space-y-3">
@@ -646,7 +646,7 @@ export default function Overview() {
           </SectionCard>
         </div>
 
-        <div>
+        <div className="h-full">
           <SectionCard title="Today's Attendance" subtitle="Present · Late · Absent · On Leave">
             {loading ? (
               <div className="skeleton h-44 rounded" />
@@ -670,109 +670,11 @@ export default function Overview() {
 
       </div>
 
-      {/* ── NEW ROW: 30-day Attendance Trend + Project Health ──────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* 30-day Attendance Trend — area chart */}
-        <div className="lg:col-span-3">
-          <SectionCard
-            title="30-Day Attendance Trend"
-            subtitle="On Time · Late · Absent per day"
-            action={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <MdTrendingUp size={14} style={{ color: 'var(--primary)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last 30 days</span>
-              </div>
-            }
-          >
-            {trendLoading ? (
-              <div className="skeleton h-40 rounded" />
-            ) : trend30.length === 0 ? (
-              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No attendance trend data</p>
-              </div>
-            ) : (
-              <ResponsiveContainer width="100%" height={155}>
-                <AreaChart data={trend30} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="gradOnTime" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gradLate" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#EF9F27" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#EF9F27" stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
-                  <Area type="monotone" dataKey="onTime" name="On Time" stroke="#1D9E75" strokeWidth={2} fill="url(#gradOnTime)" dot={false} />
-                  <Area type="monotone" dataKey="late"   name="Late"    stroke="#EF9F27" strokeWidth={2} fill="url(#gradLate)"   dot={false} />
-                  <Area type="monotone" dataKey="absent" name="Absent"  stroke="#E24B4A" strokeWidth={2} fill="url(#gradAbsent)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* Project Health Donut */}
-        <div className="lg:col-span-2">
-          <SectionCard
-            title="Project Health"
-            subtitle="Active projects by deadline status"
-            action={
-              <button onClick={() => navigate('/projects')} className="btn btn-ghost text-xs"
-                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                View All →
-              </button>
-            }
-          >
-            {healthLoading ? (
-              <div className="skeleton h-40 rounded" />
-            ) : !projectHealth || projectHealth.total === 0 ? (
-              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <MdFolderOpen size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
-                <p className="text-sm">No active projects</p>
-              </div>
-            ) : (
-              <div>
-                <ResponsiveContainer width="100%" height={110}>
-                  <PieChart>
-                    <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={30} outerRadius={46}
-                      dataKey="value" paddingAngle={3}>
-                      {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v, n) => [v, n]} />
-                  </PieChart>
-                </ResponsiveContainer>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
-                  {[
-                    { label: 'On Track', value: projectHealth.onTrack, color: '#1D9E75' },
-                    { label: 'At Risk',  value: projectHealth.atRisk,  color: '#EF9F27' },
-                    { label: 'Overdue',  value: projectHealth.overdue, color: '#E24B4A' },
-                  ].map(item => (
-                    <div key={item.label} style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 18, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
-                      <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.label}</p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </SectionCard>
-        </div>
-      </div>
-
-      {/* ── Mid row: Late Arrivals + Daily Hours + Today's Attendance ──── */}
+      {/* ── Late Arrivals Today + Daily Hours ─────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         {/* Late Arrivals */}
-        <div className="lg:col-span-3">
+        <div className="lg:col-span-3 h-full">
           <SectionCard
             title="Late Arrivals Today"
             subtitle={loading ? '' : `${stats.late || 0} employees`}
@@ -837,7 +739,7 @@ export default function Overview() {
         </div>
 
         {/* Daily Hours */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 h-full">
           <SectionCard
             title="Daily Hours"
             subtitle="Last 14 days"
@@ -855,18 +757,121 @@ export default function Overview() {
                 <p className="text-sm">No hours logged yet</p>
               </div>
             ) : (
-              <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<DailyHoursTooltip />} cursor={{ fill: 'var(--bg)' }} />
-                  <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
-                </BarChart>
-              </ResponsiveContainer>
+              <div style={{ height: '100%', minHeight: 200 }}>
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                    <Tooltip content={<DailyHoursTooltip />} cursor={{ fill: 'var(--bg)' }} />
+                    <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
             )}
           </SectionCard>
         </div>
       </div>
+
+      {/* ── 30-day Attendance Trend + Project Health ───────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        {/* 30-day Attendance Trend — area chart */}
+        <div className="lg:col-span-3 h-full">
+          <SectionCard
+            title="30-Day Attendance Trend"
+            subtitle="On Time · Late · Absent per day"
+            action={
+              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <MdTrendingUp size={14} style={{ color: 'var(--primary)' }} />
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last 30 days</span>
+              </div>
+            }
+          >
+            {trendLoading ? (
+              <div className="skeleton h-40 rounded" />
+            ) : trend30.length === 0 ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No attendance trend data</p>
+              </div>
+            ) : (
+              <div style={{ height: '100%', minHeight: 155 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={trend30} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <defs>
+                    <linearGradient id="gradOnTime" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}   />
+                    </linearGradient>
+                    <linearGradient id="gradLate" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#EF9F27" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#EF9F27" stopOpacity={0}   />
+                    </linearGradient>
+                    <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.25} />
+                      <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}    />
+                    </linearGradient>
+                  </defs>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
+                  <Area type="monotone" dataKey="onTime" name="On Time" stroke="#1D9E75" strokeWidth={2} fill="url(#gradOnTime)" dot={false} />
+                  <Area type="monotone" dataKey="late"   name="Late"    stroke="#EF9F27" strokeWidth={2} fill="url(#gradLate)"   dot={false} />
+                  <Area type="monotone" dataKey="absent" name="Absent"  stroke="#E24B4A" strokeWidth={2} fill="url(#gradAbsent)" dot={false} />
+                </AreaChart>
+              </ResponsiveContainer>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+
+        {/* Project Health Donut */}
+        <div className="lg:col-span-2 h-full">
+          <SectionCard
+            title="Project Health"
+            subtitle="Active projects by deadline status"
+            action={
+              <button onClick={() => navigate('/projects')} className="btn btn-ghost text-xs"
+                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                View All →
+              </button>
+            }
+          >
+            {healthLoading ? (
+              <div className="skeleton h-40 rounded" />
+            ) : !projectHealth || projectHealth.total === 0 ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <MdFolderOpen size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+                <p className="text-sm">No active projects</p>
+              </div>
+            ) : (
+              <div>
+                <ResponsiveContainer width="100%" height={110}>
+                  <PieChart>
+                    <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={30} outerRadius={46}
+                      dataKey="value" paddingAngle={3}>
+                      {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [v, n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
+                  {[
+                    { label: 'On Track', value: projectHealth.onTrack, color: '#1D9E75' },
+                    { label: 'At Risk',  value: projectHealth.atRisk,  color: '#EF9F27' },
+                    { label: 'Overdue',  value: projectHealth.overdue, color: '#E24B4A' },
+                  ].map(item => (
+                    <div key={item.label} style={{ textAlign: 'center' }}>
+                      <p style={{ fontSize: 18, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
+                      <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </SectionCard>
+        </div>
+      </div>
+
 
       {/* ── Top Performers + Absence Alerts ───────────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
