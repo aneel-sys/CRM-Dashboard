@@ -185,13 +185,13 @@ async function fetchTimesheet(q) {
   const tblName = await detectTimesheetTable();
   let sql = `
     SELECT u.name as employee, p.project_name as project,
-           DATE_FORMAT(tl.created_at, '%Y-%m-%d') as date,
+           DATE_FORMAT(tl.start_time, '%Y-%m-%d') as date,
            ROUND(tl.total_hours, 2) as hours,
            tl.memo as notes
     FROM ${tbl(tblName)} tl
     JOIN ${tbl('users')} u ON u.id = tl.user_id
     LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
-    WHERE DATE(tl.created_at) BETWEEN ? AND ?`;
+    WHERE DATE(tl.start_time) BETWEEN ? AND ?`;
   const params = [from, to];
   if (userId)    { sql += ' AND tl.user_id = ?';    params.push(userId); }
   if (projectId) { sql += ' AND tl.project_id = ?'; params.push(projectId); }
@@ -254,7 +254,7 @@ async function fetchTeam(q) {
     LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
       AND MONTH(a.clock_in_time) = ? AND YEAR(a.clock_in_time) = ?
     LEFT JOIN ${tbl(tblName)} tl ON tl.user_id = u.id
-      AND MONTH(tl.created_at) = ? AND YEAR(tl.created_at) = ?
+      AND MONTH(tl.start_time) = ? AND YEAR(tl.start_time) = ?
     WHERE u.status = 'active'`;
   const params = [month, year, month, year];
   if (deptId) { sql += ' AND ed.department_id = ?'; params.push(deptId); }

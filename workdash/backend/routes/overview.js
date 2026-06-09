@@ -109,7 +109,7 @@ router.get('/today', requireAuth, async (req, res) => {
     try {
       const [[row]] = await pool.query(
         `SELECT COALESCE(SUM(total_hours), 0) as hours FROM ${tbl('project_time_logs')}
-         WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
+         WHERE MONTH(start_time) = MONTH(CURDATE()) AND YEAR(start_time) = YEAR(CURDATE())`
       );
       monthHours = parseFloat(row.hours) || 0;
     } catch {
@@ -176,7 +176,7 @@ router.get('/today', requireAuth, async (req, res) => {
                 COALESCE(SUM(tl.total_hours), 0) as total_hours
          FROM ${tbl('users')} u
          LEFT JOIN ${tbl('project_time_logs')} tl ON tl.user_id = u.id
-           AND MONTH(tl.created_at) = MONTH(CURDATE()) AND YEAR(tl.created_at) = YEAR(CURDATE())
+           AND MONTH(tl.start_time) = MONTH(CURDATE()) AND YEAR(tl.start_time) = YEAR(CURDATE())
          WHERE u.status = 'active'
          GROUP BY u.id, u.name
          ORDER BY total_hours DESC
@@ -204,11 +204,11 @@ router.get('/today', requireAuth, async (req, res) => {
     let dailyHours = [];
     try {
       const [rows] = await pool.query(
-        `SELECT DATE(created_at) as date, COALESCE(SUM(total_hours), 0) as hours
+        `SELECT DATE(start_time) as date, COALESCE(SUM(total_hours), 0) as hours
          FROM ${tbl('project_time_logs')}
-         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-           AND created_at <= NOW()
-         GROUP BY DATE(created_at)
+         WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+           AND start_time <= NOW()
+         GROUP BY DATE(start_time)
          ORDER BY date ASC`
       );
       dailyHours = rows;
@@ -230,11 +230,11 @@ router.get('/today', requireAuth, async (req, res) => {
     let dailyEmployees = [];
     try {
       const [rows] = await pool.query(
-        `SELECT DATE(created_at) as date, COUNT(DISTINCT user_id) as employees
+        `SELECT DATE(start_time) as date, COUNT(DISTINCT user_id) as employees
          FROM ${tbl('project_time_logs')}
-         WHERE created_at >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
-           AND created_at <= NOW()
-         GROUP BY DATE(created_at)
+         WHERE start_time >= DATE_SUB(CURDATE(), INTERVAL 13 DAY)
+           AND start_time <= NOW()
+         GROUP BY DATE(start_time)
          ORDER BY date ASC`
       );
       dailyEmployees = rows;
@@ -326,7 +326,7 @@ router.get('/top-performers', requireAuth, async (req, res) => {
               COUNT(DISTINCT CASE WHEN a.late = 'yes' THEN DATE(a.clock_in_time) END) as days_late
        FROM ${tbl('users')} u
        LEFT JOIN ${tbl(tlTable)} tl ON tl.user_id = u.id
-         AND MONTH(tl.created_at) = MONTH(CURDATE()) AND YEAR(tl.created_at) = YEAR(CURDATE())
+         AND MONTH(tl.start_time) = MONTH(CURDATE()) AND YEAR(tl.start_time) = YEAR(CURDATE())
        LEFT JOIN ${tbl('attendances')} a ON a.user_id = u.id
          AND MONTH(a.clock_in_time) = MONTH(CURDATE()) AND YEAR(a.clock_in_time) = YEAR(CURDATE())
        WHERE u.status = 'active'

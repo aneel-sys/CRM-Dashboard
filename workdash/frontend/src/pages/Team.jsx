@@ -201,7 +201,7 @@ export default function Team() {
         <div>
           <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Year</label>
           <select value={year} onChange={e => setYear(Number(e.target.value))} className="form-input form-select" style={{ paddingRight: 28 }}>
-            {[2023, 2024, 2025, 2026].map(y => <option key={y}>{y}</option>)}
+            {Array.from({ length: new Date().getFullYear() - 2022 }, (_, i) => 2023 + i).map(y => <option key={y}>{y}</option>)}
           </select>
         </div>
         <button onClick={fetchData} className="btn btn-primary">Apply</button>

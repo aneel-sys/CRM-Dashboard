@@ -16,7 +16,7 @@ async function queryTimelogs(pool, tbl, extraWhere, params) {
     LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
     LEFT JOIN ${tbl('tasks')} t ON t.id = tl.task_id
     WHERE 1=1 ${extraWhere}
-    ORDER BY tl.created_at DESC`;
+    ORDER BY tl.start_time DESC`;
   try {
     const [rows] = await pool.query(sql(TIMELOGS_TABLE), params);
     return rows;

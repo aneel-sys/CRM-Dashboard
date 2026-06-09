@@ -119,7 +119,7 @@ router.get('/', requireAuth, async (req, res) => {
     if (activeIds.length) {
       try {
         const [rows] = await pool.query(
-          `SELECT project_id, MAX(created_at) as last_log
+          `SELECT project_id, MAX(start_time) as last_log
            FROM ${tbl('project_time_logs')} WHERE project_id IN (?)
            GROUP BY project_id`, [activeIds]
         );
@@ -192,10 +192,10 @@ router.get('/dashboard-stats', requireAuth, async (req, res) => {
 
     let hoursExtra = '', hoursParams = [];
     if (period === 'month') {
-      hoursExtra = 'AND MONTH(ptl.created_at) = ? AND YEAR(ptl.created_at) = ?';
+      hoursExtra = 'AND MONTH(ptl.start_time) = ? AND YEAR(ptl.start_time) = ?';
       hoursParams = [month, year];
     } else if (period === 'week') {
-      hoursExtra = 'AND ptl.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+      hoursExtra = 'AND ptl.start_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
     }
 
     let totalHours = 0;
@@ -238,10 +238,10 @@ router.get('/hours-chart', requireAuth, async (req, res) => {
 
     let extra = '', params = [];
     if (period === 'month') {
-      extra = 'AND MONTH(ptl.created_at) = ? AND YEAR(ptl.created_at) = ?';
+      extra = 'AND MONTH(ptl.start_time) = ? AND YEAR(ptl.start_time) = ?';
       params = [month, year];
     } else if (period === 'week') {
-      extra = 'AND ptl.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+      extra = 'AND ptl.start_time >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
     }
 
     let rows = [];
@@ -431,7 +431,7 @@ router.get('/:id/members', requireAuth, async (req, res) => {
       const [rows] = await pool.query(
         `SELECT user_id, COALESCE(SUM(total_hours), 0) as hours
          FROM ${tbl('project_time_logs')}
-         WHERE project_id = ? AND MONTH(created_at) = ? AND YEAR(created_at) = ?
+         WHERE project_id = ? AND MONTH(start_time) = ? AND YEAR(start_time) = ?
          GROUP BY user_id`,
         [id, month, year]
       );

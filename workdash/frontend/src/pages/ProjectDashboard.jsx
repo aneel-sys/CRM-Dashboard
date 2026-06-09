@@ -175,7 +175,7 @@ export default function ProjectDashboard() {
             </select>
             <select value={year} onChange={e => setYear(Number(e.target.value))}
               className="form-input form-select" style={{ height: 32, fontSize: 12, paddingRight: 28 }}>
-              {[2023, 2024, 2025, 2026].map(y => <option key={y}>{y}</option>)}
+              {Array.from({ length: new Date().getFullYear() - 2022 }, (_, i) => 2023 + i).map(y => <option key={y}>{y}</option>)}
             </select>
           </>
         )}
