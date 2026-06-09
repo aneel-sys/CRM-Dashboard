@@ -547,8 +547,8 @@ export default function Overview() {
         </div>
       </div>
 
-      {/* ── Top Performers + Absence Alerts + Active Projects ─────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* ── Top Performers + Absence Alerts ───────────────────────────── */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
         {/* Top Performers Leaderboard (replaces basic Top Workers) */}
         <div className="card p-5">
@@ -625,29 +625,6 @@ export default function Overview() {
           )}
         </div>
 
-        {/* Active Projects */}
-        <div className="card p-5">
-          <p className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>Active Projects</p>
-          {loading ? (
-            <div className="space-y-3">
-              <div className="skeleton h-10 w-16 rounded" />
-              <div className="skeleton h-2 rounded-full" />
-            </div>
-          ) : (
-            <>
-              <p className="text-4xl font-bold mb-4" style={{ color: 'var(--text)' }}>{stats.activeProjects ?? '—'}</p>
-              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-                <div className="h-full rounded-full" style={{
-                  width: projectHealth?.total > 0 ? `${Math.round((projectHealth.onTrack / projectHealth.total) * 100)}%` : '70%',
-                  background: 'var(--primary)',
-                }} />
-              </div>
-              <p className="text-xs mt-1.5" style={{ color: 'var(--text-muted)' }}>
-                {projectHealth ? `${projectHealth.onTrack} on track` : 'in progress'}
-              </p>
-            </>
-          )}
-        </div>
       </div>
 
       {/* ── Currently Working + Department Breakdown ───────────────────── */}

@@ -12,6 +12,7 @@ const PAGE_TITLES = {
   '/timings':        'Timings / Timesheets',
   '/team':           'All Employees',
   '/reports':        'Reports & Exports',
+  '/hr':             'HR Dashboard',
   '/notifications':  'Alerts & Notifications',
   '/settings':       'Settings',
 };

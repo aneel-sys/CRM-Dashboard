@@ -15,6 +15,7 @@ import Team from './pages/Team';
 import Notifications from './pages/Notifications';
 import Settings from './pages/Settings';
 import Reports from './pages/Reports';
+import HR from './pages/HR';
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route path="/timings" element={<Timings />} />
         <Route path="/team" element={<Team />} />
         <Route path="/reports" element={<Reports />} />
+        <Route path="/hr" element={<HR />} />
         <Route path="/notifications" element={<Notifications />} />
         <Route path="/settings" element={<Settings />} />
       </Route>

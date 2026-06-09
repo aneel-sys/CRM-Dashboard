@@ -16,6 +16,7 @@ const notificationRoutes = require('./routes/notifications');
 const settingsRoutes   = require('./routes/settings');
 const streamRoutes     = require('./routes/stream');
 const reportsRoutes    = require('./routes/reports');
+const hrRoutes         = require('./routes/hr');
 const broadcaster      = require('./lib/broadcaster');
 
 const app = express();
@@ -66,6 +67,7 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/stream', streamRoutes);
 app.use('/api/reports', reportsRoutes);
+app.use('/api/hr', hrRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
