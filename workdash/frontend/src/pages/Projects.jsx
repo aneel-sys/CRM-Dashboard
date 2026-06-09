@@ -305,7 +305,7 @@ function ProjectDetail({ project, onBack }) {
         const isLate = new Date(v) < now;
         return (
           <span className="text-xs font-medium" style={{ color: isLate ? 'var(--danger)' : 'var(--text-secondary)' }}>
-            {fmtDate(v)}{isLate ? ' ⚠' : ''}
+            {fmtDate(v)}{isLate ? ' (overdue)' : ''}
           </span>
         );
       },

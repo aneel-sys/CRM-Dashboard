@@ -4,6 +4,7 @@ import {
   MdDownload, MdFilterList, MdDragIndicator, MdVisibility, MdVisibilityOff,
   MdAccessTime, MdCalendarToday, MdSummarize, MdSchedule,
   MdFolderOpen, MdPeople, MdRefresh, MdExpandMore,
+  MdTableChart, MdPictureAsPdf, MdDescription,
 } from 'react-icons/md';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -653,10 +654,12 @@ export default function Reports() {
                     overflow: 'hidden', minWidth: 180,
                   }}>
                     {[
-                      { label: 'Excel (.xlsx)', sub: 'Formatted spreadsheet', icon: '📊', action: handleExportExcel },
-                      { label: 'PDF (.pdf)',    sub: 'Printable document',    icon: '📄', action: handleExportPDF   },
-                      { label: 'CSV (.csv)',    sub: 'Raw data / any app',    icon: '📋', action: handleExportCSV   },
-                    ].map(opt => (
+                      { label: 'Excel (.xlsx)', sub: 'Formatted spreadsheet', icon: MdTableChart,    color: '#1D9E75', action: handleExportExcel },
+                      { label: 'PDF (.pdf)',    sub: 'Printable document',    icon: MdPictureAsPdf,  color: '#E24B4A', action: handleExportPDF   },
+                      { label: 'CSV (.csv)',    sub: 'Raw data / any app',    icon: MdDescription,   color: '#378ADD', action: handleExportCSV   },
+                    ].map(opt => {
+                      const Icon = opt.icon;
+                      return (
                       <button
                         key={opt.label}
                         onClick={opt.action}
@@ -670,13 +673,20 @@ export default function Reports() {
                         onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                       >
-                        <span style={{ fontSize: 18, lineHeight: 1 }}>{opt.icon}</span>
+                        <div style={{
+                          width: 32, height: 32, borderRadius: 8, flexShrink: 0,
+                          background: `${opt.color}18`,
+                          display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        }}>
+                          <Icon size={17} style={{ color: opt.color }} />
+                        </div>
                         <div>
                           <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{opt.label}</p>
                           <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{opt.sub}</p>
                         </div>
                       </button>
-                    ))}
+                      );
+                    })}
                   </div>
                 </>
               )}

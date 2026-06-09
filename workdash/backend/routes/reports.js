@@ -64,7 +64,7 @@ async function fetchAttendance(q) {
 
   let sql = `
     SELECT u.id, u.name, d.team_name as department, ds.name as designation,
-           DATE(a.clock_in_time) as date,
+           DATE_FORMAT(a.clock_in_time, '%Y-%m-%d') as date,
            a.clock_in_time, a.clock_out_time, a.late,
            ROUND(TIMESTAMPDIFF(MINUTE, a.clock_in_time, COALESCE(a.clock_out_time, NOW())) / 60, 2) as hours_worked,
            ess.shift_start_time
@@ -109,7 +109,7 @@ async function fetchLateArrivals(q) {
 
   let sql = `
     SELECT u.name, d.team_name as department,
-           DATE(a.clock_in_time) as date,
+           DATE_FORMAT(a.clock_in_time, '%Y-%m-%d') as date,
            a.clock_in_time, ess.shift_start_time
     FROM ${tbl('attendances')} a
     JOIN ${tbl('users')} u ON u.id = a.user_id
@@ -185,7 +185,7 @@ async function fetchTimesheet(q) {
   const tblName = await detectTimesheetTable();
   let sql = `
     SELECT u.name as employee, p.project_name as project,
-           DATE(tl.created_at) as date,
+           DATE_FORMAT(tl.created_at, '%Y-%m-%d') as date,
            ROUND(tl.total_hours, 2) as hours,
            tl.memo as notes
     FROM ${tbl(tblName)} tl
