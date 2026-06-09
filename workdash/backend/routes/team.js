@@ -53,29 +53,21 @@ router.get('/', requireAuth, async (req, res) => {
       params
     );
 
-    // Hours per user this month
+    // Hours per user this month — from attendance clock_in/clock_out
     let hoursMap = {};
     try {
       const [rows] = await pool.query(
-        `SELECT user_id, COALESCE(SUM(total_hours), 0) as hours
-         FROM ${tbl('project_time_logs')}
-         WHERE MONTH(created_at) = ? AND YEAR(created_at) = ?
+        `SELECT user_id,
+                ROUND(SUM(TIMESTAMPDIFF(MINUTE, clock_in_time,
+                  COALESCE(clock_out_time, NOW())) / 60), 1) as hours
+         FROM ${tbl('attendances')}
+         WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
+           AND clock_in_time IS NOT NULL
          GROUP BY user_id`,
         [month, year]
       );
       rows.forEach(r => { hoursMap[r.user_id] = parseFloat(r.hours) || 0; });
-    } catch {
-      try {
-        const [rows] = await pool.query(
-          `SELECT user_id, COALESCE(SUM(total_hours), 0) as hours
-           FROM ${tbl('timelogs')}
-           WHERE MONTH(created_at) = ? AND YEAR(created_at) = ?
-           GROUP BY user_id`,
-          [month, year]
-        );
-        rows.forEach(r => { hoursMap[r.user_id] = parseFloat(r.hours) || 0; });
-      } catch {}
-    }
+    } catch {}
 
     // Avg clock-in time + avg shift start per user this month
     let avgClockInMap = {};
