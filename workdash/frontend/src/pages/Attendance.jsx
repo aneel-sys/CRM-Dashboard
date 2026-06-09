@@ -93,6 +93,7 @@ export default function Attendance() {
   const handleExport = () => {
     const p = new URLSearchParams({ date });
     if (deptId) p.set('department_id', deptId);
+    if (status) p.set('status', status);
     window.open(`/api/attendance/export?${p}`, '_blank');
   };
 
@@ -216,12 +217,22 @@ export default function Attendance() {
           <div>
             <p className="section-title">Attendance Log</p>
             <p className="section-sub">
-              {date} · {tableData.length} records
+              {date} · {tableData.length} record{tableData.length !== 1 ? 's' : ''}
               {status ? ` · Filtered: ${status}` : ''}
             </p>
           </div>
         </div>
-        <DataTable columns={COLUMNS} data={tableData} loading={loading} emptyMessage="No attendance records for this date" />
+        {date > today ? (
+          <div className="flex flex-col items-center justify-center py-16" style={{ color: 'var(--text-muted)' }}>
+            <svg width="40" height="40" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.25, marginBottom: 12 }}>
+              <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="12" /><line x1="12" y1="16" x2="12.01" y2="16" />
+            </svg>
+            <p className="text-sm font-medium">No data for future dates</p>
+            <p className="text-xs mt-1" style={{ color: 'var(--text-muted)' }}>Select today or a past date to view attendance records</p>
+          </div>
+        ) : (
+          <DataTable columns={COLUMNS} data={tableData} loading={loading} emptyMessage="No attendance records for this date" />
+        )}
       </div>
     </div>
   );

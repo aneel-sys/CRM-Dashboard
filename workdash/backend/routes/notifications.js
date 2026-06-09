@@ -88,8 +88,18 @@ router.get('/', requireAuth, async (req, res) => {
     }
 
     // 3. Low attendance this month (< 75%) — holiday-aware working days
+    let officeDays = [1, 2, 3, 4, 5, 6];
+    try {
+      const [[as]] = await pool.query(
+        `SELECT office_open_days FROM ${tbl('attendance_settings')} LIMIT 1`
+      );
+      if (as?.office_open_days) {
+        const parsed = JSON.parse(as.office_open_days);
+        officeDays = parsed.map(d => Number(d) === 7 ? 0 : Number(d));
+      }
+    } catch {}
     const holidays = await getHolidays(year, month);
-    const workingDays = getWorkingDays(year, month, holidays);
+    const workingDays = getWorkingDays(year, month, holidays, officeDays);
     if (workingDays > 0) {
       const threshold = Math.floor(workingDays * 0.75);
       const [lowAttRows] = await pool.query(
@@ -178,8 +188,18 @@ router.get('/expanded', requireAuth, async (_req, res) => {
     const month = now.getMonth() + 1;
     const year = now.getFullYear();
 
+    let officeDays = [1, 2, 3, 4, 5, 6];
+    try {
+      const [[as]] = await pool.query(
+        `SELECT office_open_days FROM ${tbl('attendance_settings')} LIMIT 1`
+      );
+      if (as?.office_open_days) {
+        const parsed = JSON.parse(as.office_open_days);
+        officeDays = parsed.map(d => Number(d) === 7 ? 0 : Number(d));
+      }
+    } catch {}
     const holidays = await getHolidays(year, month);
-    const workingDays = getWorkingDays(year, month, holidays);
+    const workingDays = getWorkingDays(year, month, holidays, officeDays);
 
     // Late arrivals — use Worksuite's shift-aware late column + per-shift start time
     const [lateRows] = await pool.query(
@@ -286,14 +306,20 @@ async function getHolidays(year, month) {
   } catch { return new Set(); }
 }
 
-function getWorkingDays(year, month, holidays = new Set()) {
-  const date = new Date(year, month - 1, 1);
+function getWorkingDays(year, month, holidays = new Set(), officeDays = [1, 2, 3, 4, 5, 6]) {
+  const now = new Date();
+  const isCurrentMonth = (year === now.getFullYear() && month === now.getMonth() + 1);
+  const start = new Date(year, month - 1, 1);
+  const end = isCurrentMonth
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    : new Date(year, month, 0);
   let count = 0;
-  while (date.getMonth() === month - 1) {
-    const day = date.getDay();
-    const ds = date.toISOString().slice(0, 10);
-    if (day !== 0 && !holidays.has(ds)) count++;
-    date.setDate(date.getDate() + 1);
+  const d = new Date(start);
+  while (d <= end) {
+    const day = d.getDay();
+    const ds = d.toISOString().slice(0, 10);
+    if (officeDays.includes(day) && !holidays.has(ds)) count++;
+    d.setDate(d.getDate() + 1);
   }
   return count;
 }

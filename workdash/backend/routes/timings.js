@@ -6,36 +6,28 @@ const { requireAuth } = require('../middleware/auth');
 const TIMELOGS_TABLE = 'project_time_logs'; // fallback handled in helper
 
 async function queryTimelogs(pool, tbl, extraWhere, params) {
+  const sql = table => `
+    SELECT tl.id, u.id as user_id, u.name as employee_name,
+           p.project_name, t.heading as task_name,
+           tl.total_hours, tl.memo as notes,
+           DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
+    FROM ${tbl(table)} tl
+    JOIN ${tbl('users')} u ON u.id = tl.user_id
+    LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
+    LEFT JOIN ${tbl('tasks')} t ON t.id = tl.task_id
+    WHERE 1=1 ${extraWhere}
+    ORDER BY tl.created_at DESC`;
   try {
-    const [rows] = await pool.query(
-      `SELECT tl.id, u.id as user_id, u.name as employee_name,
-              p.project_name, t.heading as task_name,
-              tl.total_hours, tl.memo as notes,
-              DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
-       FROM ${tbl(TIMELOGS_TABLE)} tl
-       JOIN ${tbl('users')} u ON u.id = tl.user_id
-       LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
-       LEFT JOIN ${tbl('tasks')} t ON t.id = tl.task_id
-       WHERE 1=1 ${extraWhere}
-       ORDER BY tl.created_at DESC`,
-      params
-    );
+    const [rows] = await pool.query(sql(TIMELOGS_TABLE), params);
     return rows;
   } catch {
-    const [rows] = await pool.query(
-      `SELECT tl.id, u.id as user_id, u.name as employee_name,
-              p.project_name, t.heading as task_name,
-              tl.total_hours, tl.memo as notes,
-              DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
-       FROM ${tbl('timelogs')} tl
-       JOIN ${tbl('users')} u ON u.id = tl.user_id
-       LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
-       LEFT JOIN ${tbl('tasks')} t ON t.id = tl.task_id
-       WHERE 1=1 ${extraWhere}
-       ORDER BY tl.created_at DESC`,
-      params
-    );
-    return rows;
+    try {
+      const [rows] = await pool.query(sql('timelogs'), params);
+      return rows;
+    } catch (err2) {
+      console.error('queryTimelogs both tables failed:', err2.message);
+      return [];
+    }
   }
 }
 
@@ -61,9 +53,9 @@ router.get('/', requireAuth, async (req, res) => {
       success: true,
       logs: rows,
       summary: {
-        totalHours: totalHours.toFixed(2),
-        avgPerEmployee: uniqueEmployees ? (totalHours / uniqueEmployees).toFixed(2) : '0.00',
-        avgPerDay: uniqueDays ? (totalHours / uniqueDays).toFixed(2) : '0.00',
+        totalHours: totalHours.toFixed(1),
+        avgPerEmployee: uniqueEmployees ? (totalHours / uniqueEmployees).toFixed(1) : '0.0',
+        avgPerDay: uniqueDays ? (totalHours / uniqueDays).toFixed(1) : '0.0',
         totalEntries: rows.length,
       },
     });

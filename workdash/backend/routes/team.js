@@ -97,9 +97,19 @@ router.get('/', requireAuth, async (req, res) => {
       rows.forEach(r => { projectMap[r.user_id] = r.active_projects; });
     } catch {}
 
-    // Working days in month (excluding Sundays + holidays from DB)
+    // Working days in month — use office_open_days from DB (same as employees.js)
+    let officeDays = [1, 2, 3, 4, 5, 6]; // Mon-Sat fallback
+    try {
+      const [[as]] = await pool.query(
+        `SELECT office_open_days FROM ${tbl('attendance_settings')} LIMIT 1`
+      );
+      if (as?.office_open_days) {
+        const parsed = JSON.parse(as.office_open_days);
+        officeDays = parsed.map(d => Number(d) === 7 ? 0 : Number(d));
+      }
+    } catch {}
     const holidays = await getHolidays(year, month);
-    const workingDays = getWorkingDays(year, month, holidays);
+    const workingDays = getWorkingDays(year, month, holidays, officeDays);
 
     const result = employees.map(e => ({
       ...e,
@@ -119,12 +129,19 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/team/export?month=&year=
+// GET /api/team/export?month=&year=&department_id=&search=
 router.get('/export', requireAuth, async (req, res) => {
   try {
-    // reuse same logic, then build CSV
     const month = parseInt(req.query.month) || new Date().getMonth() + 1;
     const year = parseInt(req.query.year) || new Date().getFullYear();
+    const departmentId = req.query.department_id || null;
+    const search = req.query.search || null;
+
+    const params = [month, year];
+    let deptFilter = '', searchFilter = '';
+    if (departmentId) { deptFilter = 'AND ed.department_id = ?'; params.push(departmentId); }
+    if (search) { searchFilter = 'AND u.name LIKE ?'; params.push(`%${search}%`); }
+
     const [employees] = await pool.query(
       `SELECT u.id, u.name, d.team_name as department, ds.name as designation,
               COUNT(DISTINCT CASE WHEN MONTH(a.clock_in_time) = ? AND YEAR(a.clock_in_time) = ?
@@ -135,25 +152,41 @@ router.get('/export', requireAuth, async (req, res) => {
        LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
        LEFT JOIN ${tbl('designations')} ds ON ds.id = ed.designation_id
        WHERE u.status = 'active'
+       ${deptFilter} ${searchFilter}
        GROUP BY u.id, u.name, d.team_name, ds.name
        ORDER BY u.name`,
-      [month, year]
+      params
     );
 
+    // Hours from attendance (same source as the main Team page)
     let hoursMap = {};
     try {
       const [rows] = await pool.query(
-        `SELECT user_id, COALESCE(SUM(total_hours), 0) as hours
-         FROM ${tbl('project_time_logs')}
-         WHERE MONTH(created_at) = ? AND YEAR(created_at) = ?
+        `SELECT user_id,
+                ROUND(SUM(TIMESTAMPDIFF(MINUTE, clock_in_time,
+                  COALESCE(clock_out_time, NOW())) / 60), 1) as hours
+         FROM ${tbl('attendances')}
+         WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
+           AND clock_in_time IS NOT NULL
          GROUP BY user_id`,
         [month, year]
       );
       rows.forEach(r => { hoursMap[r.user_id] = parseFloat(r.hours) || 0; });
     } catch {}
 
+    let officeDays = [1, 2, 3, 4, 5, 6];
+    try {
+      const [[as]] = await pool.query(
+        `SELECT office_open_days FROM ${tbl('attendance_settings')} LIMIT 1`
+      );
+      if (as?.office_open_days) {
+        const parsed = JSON.parse(as.office_open_days);
+        officeDays = parsed.map(d => Number(d) === 7 ? 0 : Number(d));
+      }
+    } catch {}
+
     const holidays = await getHolidays(year, month);
-    const workingDays = getWorkingDays(year, month, holidays);
+    const workingDays = getWorkingDays(year, month, holidays, officeDays);
     const headers = ['Name', 'Department', 'Designation', 'Present Days', 'Working Days', 'Attendance %', 'Month Hours'];
     const csvRows = employees.map(e => [
       `"${e.name}"`,
@@ -185,14 +218,20 @@ async function getHolidays(year, month) {
   } catch { return new Set(); }
 }
 
-function getWorkingDays(year, month, holidays = new Set()) {
-  const date = new Date(year, month - 1, 1);
+function getWorkingDays(year, month, holidays = new Set(), officeDays = [1, 2, 3, 4, 5, 6]) {
+  const now = new Date();
+  const isCurrentMonth = (year === now.getFullYear() && month === now.getMonth() + 1);
+  const start = new Date(year, month - 1, 1);
+  const end = isCurrentMonth
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    : new Date(year, month, 0);
   let count = 0;
-  while (date.getMonth() === month - 1) {
-    const day = date.getDay();
-    const ds = date.toISOString().slice(0, 10);
-    if (day !== 0 && !holidays.has(ds)) count++;
-    date.setDate(date.getDate() + 1);
+  const d = new Date(start);
+  while (d <= end) {
+    const day = d.getDay();
+    const ds = d.toISOString().slice(0, 10);
+    if (officeDays.includes(day) && !holidays.has(ds)) count++;
+    d.setDate(d.getDate() + 1);
   }
   return count;
 }

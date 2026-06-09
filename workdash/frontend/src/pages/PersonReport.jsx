@@ -211,11 +211,29 @@ export default function PersonReport() {
               <div className="px-6 py-6" style={{ background: 'linear-gradient(135deg, #1D9E75, #0F6E56)' }}>
                 <div className="flex items-center gap-4">
                   <Avatar name={emp.name} size={56} />
-                  <div>
+                  <div className="flex-1 min-w-0">
                     <p className="text-white font-bold text-[16px] leading-tight">{emp.name}</p>
                     <p className="text-white/70 text-xs mt-0.5">{emp.department}</p>
                     <p className="text-white/50 text-[11px]">{emp.designation}</p>
                   </div>
+                  {stats.todayStatus && (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, letterSpacing: '0.05em',
+                      padding: '3px 8px', borderRadius: 99,
+                      background: stats.todayStatus === 'Present' ? 'rgba(29,158,117,0.25)'
+                        : stats.todayStatus === 'Late' ? 'rgba(239,159,39,0.3)'
+                        : 'rgba(226,75,74,0.3)',
+                      color: stats.todayStatus === 'Present' ? '#6EFFD0'
+                        : stats.todayStatus === 'Late' ? '#FFD97D'
+                        : '#FFAAAA',
+                      border: `1px solid ${stats.todayStatus === 'Present' ? 'rgba(110,255,208,0.3)'
+                        : stats.todayStatus === 'Late' ? 'rgba(255,217,125,0.3)'
+                        : 'rgba(255,170,170,0.3)'}`,
+                      whiteSpace: 'nowrap',
+                    }}>
+                      Today: {stats.todayStatus}
+                    </span>
+                  )}
                 </div>
               </div>
 

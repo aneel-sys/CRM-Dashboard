@@ -63,6 +63,18 @@ router.get('/:id/report', requireAuth, async (req, res) => {
       return res.status(404).json({ success: false, message: 'Employee not found.' });
     }
 
+    // Today's attendance status
+    const todayStr = new Date().toISOString().slice(0, 10);
+    let todayStatus = 'Absent';
+    try {
+      const [[todayRow]] = await pool.query(
+        `SELECT late FROM ${tbl('attendances')}
+         WHERE user_id = ? AND DATE(clock_in_time) = ? LIMIT 1`,
+        [id, todayStr]
+      );
+      if (todayRow) todayStatus = todayRow.late === 'yes' ? 'Late' : 'Present';
+    } catch {}
+
     // Attendance records for the month
     const [attendanceRows] = await pool.query(
       `SELECT DATE(clock_in_time) as date,
@@ -161,6 +173,7 @@ router.get('/:id/report', requireAuth, async (req, res) => {
         avgClockIn,
         avgClockOut,
         workingDays,
+        todayStatus,
       },
       dailyHours,
       projectHours,

@@ -44,15 +44,18 @@ router.get('/', requireAuth, async (req, res) => {
       params
     );
 
-    // Resolve client names — try client_details first, then clients, then companies
+    // Resolve client names — client_details uses user_id as the FK to projects.client_id
     let clientMap = {};
     for (const clientTable of ['client_details', 'clients', 'companies']) {
       try {
         const [rows] = await pool.query(
-          `SELECT id, COALESCE(company_name, name) as company_name FROM ${tbl(clientTable)}`
+          `SELECT id, user_id, COALESCE(company_name, name) as company_name FROM ${tbl(clientTable)}`
         );
-        rows.forEach(r => { clientMap[r.id] = r.company_name; });
-        break; // stop on first success
+        rows.forEach(r => {
+          const key = clientTable === 'client_details' ? (r.user_id ?? r.id) : r.id;
+          clientMap[key] = r.company_name;
+        });
+        break;
       } catch { }
     }
 
@@ -330,13 +333,14 @@ router.get('/:id', requireAuth, async (req, res) => {
 
     if (!project) return res.status(404).json({ success: false, message: 'Project not found.' });
 
-    // Resolve client name
+    // Resolve client name — client_details links via user_id, not id
     let client_name = null;
     if (project.client_id) {
       for (const t of ['client_details', 'clients', 'companies']) {
         try {
+          const col = t === 'client_details' ? 'user_id' : 'id';
           const [[r]] = await pool.query(
-            `SELECT COALESCE(company_name, name) as n FROM ${tbl(t)} WHERE id = ?`, [project.client_id]
+            `SELECT COALESCE(company_name, name) as n FROM ${tbl(t)} WHERE ${col} = ?`, [project.client_id]
           );
           if (r) { client_name = r.n; break; }
         } catch { }

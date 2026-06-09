@@ -67,7 +67,12 @@ export default function Team() {
 
   useEffect(() => { fetchData(); }, [refreshKey]);
 
-  const handleExport = () => window.open(`/api/team/export?month=${month}&year=${year}`, '_blank');
+  const handleExport = () => {
+    const p = new URLSearchParams({ month, year });
+    if (deptId) p.set('department_id', deptId);
+    if (search) p.set('search', search);
+    window.open(`/api/team/export?${p}`, '_blank');
+  };
 
   const COLUMNS = [
     {

@@ -99,11 +99,12 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/attendance/export?date=YYYY-MM-DD&department_id=
+// GET /api/attendance/export?date=YYYY-MM-DD&department_id=&status=
 router.get('/export', requireAuth, async (req, res) => {
   try {
     const date = req.query.date || new Date().toISOString().slice(0, 10);
     const departmentId = req.query.department_id || null;
+    const statusFilter = req.query.status || null;
     const settings = await getOfficeSettings();
 
     const { sql, finalParams } = buildAttendanceQuery(date, departmentId);
@@ -126,6 +127,10 @@ router.get('/export', requireAuth, async (req, res) => {
         r.delay_minutes = Math.max(0, local.getUTCHours() * 60 + local.getUTCMinutes() - fallbackThr);
       } else { r.delay_minutes = 0; }
     });
+
+    if (statusFilter && statusFilter !== 'all') {
+      rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
+    }
 
     const headers = ['Name', 'Department', 'Designation', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
     const csvRows = rows.map(r => [
