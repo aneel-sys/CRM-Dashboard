@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
@@ -6,12 +6,13 @@ import {
 } from 'recharts';
 import {
   MdFolderOpen, MdCheckCircle, MdAccessTime, MdPeople, MdFilterList,
+  MdSearch, MdClose,
 } from 'react-icons/md';
-
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 // ── status colors from project_status_settings ──────────────────────────────
 const STATUS_COLORS = {
@@ -439,39 +440,7 @@ export default function ProjectDashboard() {
 
       {/* ── Activity Modal ─────────────────────────────────────────────── */}
       {activityModal && (
-        <div
-          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
-          onClick={e => { if (e.target === e.currentTarget) setActivityModal(false); }}
-        >
-          <div style={{
-            background: 'var(--card)', borderRadius: 16, width: '100%', maxWidth: 600,
-            maxHeight: '80vh', display: 'flex', flexDirection: 'column',
-            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
-          }}>
-            {/* Modal Header */}
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border)' }}>
-              <div>
-                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>All Project Activity</p>
-                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>{activity.length} events across all projects</p>
-              </div>
-              <button onClick={() => setActivityModal(false)}
-                style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 18, fontWeight: 300 }}>
-                ×
-              </button>
-            </div>
-            {/* Modal Body */}
-            <div style={{ overflowY: 'auto', padding: '12px 24px 20px' }}>
-              {activity.map((a, idx) => (
-                <div key={a.id}>
-                  <ActivityRow a={a} />
-                  {idx < activity.length - 1 && (
-                    <div style={{ height: 1, background: 'var(--border)', margin: '0 0 0 22px', opacity: 0.5 }} />
-                  )}
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
+        <ActivityModal activity={activity} onClose={() => setActivityModal(false)} />
       )}
 
     </div>
@@ -480,17 +449,157 @@ export default function ProjectDashboard() {
 
 function ActivityRow({ a }) {
   return (
-    <div
-      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderRadius: 8 }}
+    <div style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 4px', borderRadius: 8 }}
       onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-      onMouseLeave={e => e.currentTarget.style.background = ''}
-    >
+      onMouseLeave={e => e.currentTarget.style.background = ''}>
       <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0, marginTop: 5 }} />
       <div style={{ flex: 1, minWidth: 0 }}>
         <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{parseActivity(a.activity)}</p>
         <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>{a.project_name}</p>
       </div>
       <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{timeAgo(a.created_at)}</span>
+    </div>
+  );
+}
+
+function getActivityType(text) {
+  if (!text) return 'other';
+  if (text.includes('added as a project member') || text.toLowerCase().includes('memberadded') || text === 'messages.memberAdded') return 'member';
+  if (text.includes('messages.newTask') || text.includes('Task Added')) return 'task';
+  if (text.includes('messages.updateSuccess') || text.includes('Project updated')) return 'update';
+  if (text.includes('messages.addedAsNewProject') || text.includes('Project created')) return 'created';
+  if (text.includes('timer') || text.includes('Timer')) return 'timer';
+  return 'other';
+}
+
+const TYPE_LABELS = { member: 'Member', task: 'Task', update: 'Update', created: 'Created', timer: 'Timer', other: 'Other' };
+const TYPE_COLORS = { member: '#378ADD', task: '#1D9E75', update: '#EF9F27', created: '#8B5CF6', timer: '#6B7280', other: '#6B7280' };
+
+function groupByDate(items) {
+  const groups = {};
+  items.forEach(a => {
+    const diff = Math.floor((Date.now() - new Date(a.created_at).getTime()) / 86400000);
+    const label = diff === 0 ? 'Today' : diff === 1 ? 'Yesterday' : diff < 7 ? `${diff} days ago` : diff < 30 ? `${Math.floor(diff / 7)} week${Math.floor(diff / 7) > 1 ? 's' : ''} ago` : `${Math.floor(diff / 30)} month${Math.floor(diff / 30) > 1 ? 's' : ''} ago`;
+    if (!groups[label]) groups[label] = [];
+    groups[label].push(a);
+  });
+  return groups;
+}
+
+function ActivityModal({ activity, onClose }) {
+  const [search,      setSearch]      = useState('');
+  const [projFilter,  setProjFilter]  = useState('');
+  const [typeFilter,  setTypeFilter]  = useState('');
+
+  const projects = useMemo(() => [...new Set(activity.map(a => a.project_name))].sort(), [activity]);
+
+  const filtered = useMemo(() => activity.filter(a => {
+    const text = parseActivity(a.activity).toLowerCase();
+    if (search && !text.includes(search.toLowerCase()) && !a.project_name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (projFilter && a.project_name !== projFilter) return false;
+    if (typeFilter && getActivityType(a.activity) !== typeFilter) return false;
+    return true;
+  }), [activity, search, projFilter, typeFilter]);
+
+  const grouped = useMemo(() => groupByDate(filtered), [filtered]);
+
+  return (
+    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={{ background: 'var(--card)', borderRadius: 16, width: '100%', maxWidth: 640, maxHeight: '88vh', display: 'flex', flexDirection: 'column', boxShadow: '0 24px 64px rgba(0,0,0,0.35)' }}>
+
+        {/* Header */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div>
+            <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>All Project Activity</p>
+            <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>
+              {filtered.length} of {activity.length} events
+              {(search || projFilter || typeFilter) ? ' · filtered' : ''}
+            </p>
+          </div>
+          <button onClick={onClose} style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
+            <MdClose size={16} />
+          </button>
+        </div>
+
+        {/* Filters */}
+        <div style={{ padding: '12px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          {/* Search */}
+          <div style={{ position: 'relative', flex: 1, minWidth: 160 }}>
+            <MdSearch size={14} style={{ position: 'absolute', left: 9, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }} />
+            <input
+              type="text" placeholder="Search activity or project…" value={search}
+              onChange={e => setSearch(e.target.value)}
+              style={{ width: '100%', height: 34, paddingLeft: 28, paddingRight: 10, fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', outline: 'none' }}
+            />
+            {search && (
+              <button onClick={() => setSearch('')} style={{ position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: 0 }}>
+                <MdClose size={13} />
+              </button>
+            )}
+          </div>
+          {/* Project filter */}
+          <select value={projFilter} onChange={e => setProjFilter(e.target.value)}
+            style={{ height: 34, padding: '0 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', minWidth: 130 }}>
+            <option value="">All Projects</option>
+            {projects.map(p => <option key={p} value={p}>{p}</option>)}
+          </select>
+          {/* Type filter */}
+          <select value={typeFilter} onChange={e => setTypeFilter(e.target.value)}
+            style={{ height: 34, padding: '0 10px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--text)', cursor: 'pointer', minWidth: 120 }}>
+            <option value="">All Types</option>
+            {Object.entries(TYPE_LABELS).map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+          </select>
+          {/* Active filter pills */}
+          {(search || projFilter || typeFilter) && (
+            <button onClick={() => { setSearch(''); setProjFilter(''); setTypeFilter(''); }}
+              style={{ height: 34, padding: '0 12px', fontSize: 12, border: '1px solid var(--border)', borderRadius: 8, background: 'var(--bg)', color: 'var(--danger, #E24B4A)', cursor: 'pointer', whiteSpace: 'nowrap' }}>
+              Clear filters
+            </button>
+          )}
+        </div>
+
+        {/* Body */}
+        <div style={{ overflowY: 'auto', padding: '8px 24px 20px', flex: 1 }}>
+          {filtered.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '40px 0', color: 'var(--text-muted)' }}>
+              <p style={{ fontSize: 14 }}>No matching activity found</p>
+            </div>
+          ) : (
+            Object.entries(grouped).map(([dateLabel, items]) => (
+              <div key={dateLabel}>
+                {/* Date group header */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, margin: '14px 0 6px', position: 'sticky', top: 0, background: 'var(--card)', zIndex: 1, paddingTop: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap' }}>{dateLabel}</span>
+                  <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                  <span style={{ fontSize: 10, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>{items.length}</span>
+                </div>
+                {items.map(a => {
+                  const type  = getActivityType(a.activity);
+                  const color = TYPE_COLORS[type];
+                  return (
+                    <div key={a.id} style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 8px', borderRadius: 8, margin: '0 -8px' }}
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}>
+                      <div style={{ width: 7, height: 7, borderRadius: '50%', background: color, flexShrink: 0, marginTop: 5 }} />
+                      <div style={{ flex: 1, minWidth: 0 }}>
+                        <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{parseActivity(a.activity)}</p>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2 }}>
+                          <span style={{ fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4, background: color + '18', color, border: `1px solid ${color}33` }}>
+                            {TYPE_LABELS[type]}
+                          </span>
+                          <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>{a.project_name}</span>
+                        </div>
+                      </div>
+                      <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{timeAgo(a.created_at)}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </div>
+      </div>
     </div>
   );
 }
