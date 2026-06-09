@@ -293,15 +293,17 @@ router.get('/top-contributors', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/projects/recent-activity — latest 15 project activity entries
+// GET /api/projects/recent-activity?limit= — project activity entries (default 200)
 router.get('/recent-activity', requireAuth, async (req, res) => {
   try {
+    const limit = Math.min(500, parseInt(req.query.limit) || 200);
     const [rows] = await pool.query(
       `SELECT pa.id, pa.project_id, p.project_name, pa.activity, pa.created_at
        FROM ${tbl('project_activity')} pa
        JOIN ${tbl('projects')} p ON p.id = pa.project_id
        WHERE p.deleted_at IS NULL
-       ORDER BY pa.created_at DESC LIMIT 15`
+       ORDER BY pa.created_at DESC LIMIT ?`,
+      [limit]
     );
     res.json({ success: true, data: rows });
   } catch (err) {

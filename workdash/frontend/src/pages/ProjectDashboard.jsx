@@ -98,7 +98,8 @@ export default function ProjectDashboard() {
   const [month,        setMonth]        = useState(now.getMonth() + 1);
   const [year,         setYear]         = useState(now.getFullYear());
 
-  const [loading,      setLoading]      = useState(true);
+  const [loading,        setLoading]        = useState(true);
+  const [activityModal,  setActivityModal]  = useState(false);
   const [stats,        setStats]        = useState(null);
   const [projects,     setProjects]     = useState([]);
   const [hoursChart,   setHoursChart]   = useState([]);
@@ -395,10 +396,21 @@ export default function ProjectDashboard() {
           )}
         </SectionCard>
 
-        <SectionCard title="Recent Activity" subtitle="Latest events across all projects">
+        <SectionCard
+          title="Recent Activity"
+          subtitle={`Latest events across all projects · ${activity.length} total`}
+          action={
+            activity.length > 4 ? (
+              <button onClick={() => setActivityModal(true)} className="btn btn-ghost"
+                style={{ fontSize: 11, color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                View All ({activity.length}) →
+              </button>
+            ) : null
+          }
+        >
           {loading ? (
             <div className="space-y-3">
-              {[1,2,3,4,5].map(i => <div key={i} className="skeleton rounded" style={{ height: 36 }} />)}
+              {[1,2,3,4].map(i => <div key={i} className="skeleton rounded" style={{ height: 36 }} />)}
             </div>
           ) : activity.length === 0 ? (
             <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
@@ -406,25 +418,79 @@ export default function ProjectDashboard() {
             </div>
           ) : (
             <div className="space-y-0.5">
-              {activity.map(a => (
-                <div key={a.id}
-                  style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '7px 8px', borderRadius: 8, margin: '0 -8px' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                  onMouseLeave={e => e.currentTarget.style.background = ''}
-                >
-                  <div style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0, marginTop: 5 }} />
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{parseActivity(a.activity)}</p>
-                    <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '1px 0 0' }}>{a.project_name}</p>
-                  </div>
-                  <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0 }}>{timeAgo(a.created_at)}</span>
-                </div>
+              {activity.slice(0, 4).map(a => (
+                <ActivityRow key={a.id} a={a} />
               ))}
+              {activity.length > 4 && (
+                <div style={{ paddingTop: 10, borderTop: '1px solid var(--border)', marginTop: 6, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                    +{activity.length - 4} more events
+                  </span>
+                  <button onClick={() => setActivityModal(true)} className="btn btn-ghost"
+                    style={{ fontSize: 11, color: 'var(--primary)', height: 26, padding: '0 10px' }}>
+                    View All →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </SectionCard>
       </div>
 
+      {/* ── Activity Modal ─────────────────────────────────────────────── */}
+      {activityModal && (
+        <div
+          style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}
+          onClick={e => { if (e.target === e.currentTarget) setActivityModal(false); }}
+        >
+          <div style={{
+            background: 'var(--card)', borderRadius: 16, width: '100%', maxWidth: 600,
+            maxHeight: '80vh', display: 'flex', flexDirection: 'column',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.3)',
+          }}>
+            {/* Modal Header */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 24px', borderBottom: '1px solid var(--border)' }}>
+              <div>
+                <p style={{ fontSize: 15, fontWeight: 700, color: 'var(--text)', margin: 0 }}>All Project Activity</p>
+                <p style={{ fontSize: 12, color: 'var(--text-muted)', margin: '2px 0 0' }}>{activity.length} events across all projects</p>
+              </div>
+              <button onClick={() => setActivityModal(false)}
+                style={{ width: 32, height: 32, borderRadius: 8, border: '1px solid var(--border)', background: 'var(--bg)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: 18, fontWeight: 300 }}>
+                ×
+              </button>
+            </div>
+            {/* Modal Body */}
+            <div style={{ overflowY: 'auto', padding: '12px 24px 20px' }}>
+              {activity.map((a, idx) => (
+                <div key={a.id}>
+                  <ActivityRow a={a} />
+                  {idx < activity.length - 1 && (
+                    <div style={{ height: 1, background: 'var(--border)', margin: '0 0 0 22px', opacity: 0.5 }} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+function ActivityRow({ a }) {
+  return (
+    <div
+      style={{ display: 'flex', alignItems: 'flex-start', gap: 10, padding: '8px 0', borderRadius: 8 }}
+      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+      onMouseLeave={e => e.currentTarget.style.background = ''}
+    >
+      <div style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--primary)', flexShrink: 0, marginTop: 5 }} />
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <p style={{ fontSize: 12, fontWeight: 500, color: 'var(--text)', margin: 0 }}>{parseActivity(a.activity)}</p>
+        <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '2px 0 0' }}>{a.project_name}</p>
+      </div>
+      <span style={{ fontSize: 10, color: 'var(--text-muted)', flexShrink: 0, whiteSpace: 'nowrap' }}>{timeAgo(a.created_at)}</span>
     </div>
   );
 }
