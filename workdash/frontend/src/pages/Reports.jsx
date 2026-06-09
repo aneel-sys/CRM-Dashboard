@@ -3,8 +3,10 @@ import { useOutletContext } from 'react-router-dom';
 import {
   MdDownload, MdFilterList, MdDragIndicator, MdVisibility, MdVisibilityOff,
   MdAccessTime, MdCalendarToday, MdSummarize, MdSchedule,
-  MdFolderOpen, MdPeople, MdRefresh,
+  MdFolderOpen, MdPeople, MdRefresh, MdExpandMore,
 } from 'react-icons/md';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import api from '../api/axios';
 import { useToast } from '../components/Toast';
 
@@ -419,7 +421,9 @@ export default function Reports() {
     } finally { setLoading(false); }
   }, [activeType, filters]);
 
-  const handleExport = async () => {
+  const [exportMenuOpen, setExportMenuOpen] = useState(false);
+
+  const handleExportExcel = async () => {
     const visKeys = columns.filter(c => c.vis).map(c => c.key);
     const params  = new URLSearchParams({
       type: activeType,
@@ -427,6 +431,7 @@ export default function Reports() {
       ...Object.fromEntries(Object.entries(filters).filter(([, v]) => v)),
     });
     setExporting(true);
+    setExportMenuOpen(false);
     try {
       const res = await fetch(`/api/reports/export?${params}`, { credentials: 'include' });
       if (!res.ok) throw new Error((await res.json()).message || 'Export failed');
@@ -436,11 +441,100 @@ export default function Reports() {
       const cd   = res.headers.get('Content-Disposition') || '';
       const m    = cd.match(/filename="(.+?)"/);
       a.href     = url;
-      a.download = m ? m[1] : `Report.xlsx`;
+      a.download = m ? m[1] : 'Report.xlsx';
       a.click();
       URL.revokeObjectURL(url);
     } catch (err) { toast(err.message || 'Export failed'); }
     finally { setExporting(false); }
+  };
+
+  const handleExportCSV = () => {
+    setExportMenuOpen(false);
+    const visCols = columns.filter(c => c.vis);
+    const escape  = v => {
+      const s = (v === null || v === undefined) ? '' : String(v);
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const header = visCols.map(c => escape(c.label)).join(',');
+    const body   = rows.map(row => visCols.map(c => escape(row[c.key] ?? '')).join(',')).join('\n');
+    const csv    = '﻿' + header + '\n' + body; // BOM for Excel UTF-8
+    const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url    = URL.createObjectURL(blob);
+    const a      = document.createElement('a');
+    const label  = REPORT_TYPES.find(r => r.id === activeType)?.label || 'Report';
+    a.href       = url;
+    a.download   = `${label.replace(/ /g,'_')}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    setExportMenuOpen(false);
+    const visCols  = columns.filter(c => c.vis);
+    const label    = REPORT_TYPES.find(r => r.id === activeType)?.label || 'Report';
+    const period   = filters.from && filters.to
+      ? `${filters.from} to ${filters.to}`
+      : filters.month
+        ? `${String(filters.month).padStart(2,'0')}/${filters.year || new Date().getFullYear()}`
+        : `As of ${new Date().toLocaleDateString('en-IN')}`;
+
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
+
+    // Header block
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(17, 24, 39);
+    doc.text(label, 40, 40);
+
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(107, 114, 128);
+    doc.text(period, 40, 56);
+    doc.text(`${rows.length} record${rows.length !== 1 ? 's' : ''}`, 40, 69);
+
+    // Table
+    autoTable(doc, {
+      startY: 82,
+      head: [visCols.map(c => c.label)],
+      body: rows.map(row => visCols.map(c => {
+        const v = row[c.key];
+        if (v === null || v === undefined || v === '') return '—';
+        return String(v);
+      })),
+      styles: {
+        fontSize: 8,
+        cellPadding: 4,
+        overflow: 'linebreak',
+        textColor: [31, 41, 55],
+      },
+      headStyles: {
+        fillColor: [29, 158, 117],
+        textColor: 255,
+        fontStyle: 'bold',
+        fontSize: 9,
+      },
+      alternateRowStyles: { fillColor: [249, 250, 251] },
+      margin: { left: 40, right: 40 },
+      tableLineColor: [229, 231, 235],
+      tableLineWidth: 0.3,
+    });
+
+    // Footer on each page
+    const pageCount = doc.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(8);
+      doc.setTextColor(156, 163, 175);
+      doc.text(
+        `WorkDash · ${label} · Page ${i} of ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 16,
+        { align: 'center' }
+      );
+    }
+
+    doc.save(`${label.replace(/ /g,'_')}_${period.slice(0,10)}.pdf`);
   };
 
   // Column drag handlers
@@ -528,23 +622,65 @@ export default function Reports() {
             <button onClick={fetchData} className="btn btn-primary" style={{ height: 36 }}>
               <MdFilterList size={15} /> Run Report
             </button>
-            <button
-              onClick={handleExport}
-              disabled={exporting || rows.length === 0}
-              style={{
-                display: 'inline-flex', alignItems: 'center', gap: 6,
-                height: 36, padding: '0 14px', borderRadius: 8,
-                border: 'none',
-                background: rows.length === 0 ? 'var(--border)' : '#1D9E75',
-                color: rows.length === 0 ? 'var(--text-muted)' : '#fff',
-                fontWeight: 600, fontSize: 13, cursor: rows.length === 0 ? 'default' : 'pointer',
-                transition: 'opacity 0.15s',
-                opacity: exporting ? 0.7 : 1,
-              }}
-            >
-              <MdDownload size={16} />
-              {exporting ? 'Generating…' : 'Download Excel'}
-            </button>
+
+            {/* Export dropdown */}
+            <div style={{ position: 'relative' }}>
+              <button
+                onClick={() => setExportMenuOpen(o => !o)}
+                disabled={exporting || rows.length === 0}
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  height: 36, padding: '0 14px', borderRadius: 8,
+                  border: 'none',
+                  background: rows.length === 0 ? 'var(--border)' : '#1D9E75',
+                  color: rows.length === 0 ? 'var(--text-muted)' : '#fff',
+                  fontWeight: 600, fontSize: 13, cursor: rows.length === 0 ? 'default' : 'pointer',
+                  opacity: exporting ? 0.7 : 1,
+                }}
+              >
+                <MdDownload size={16} />
+                {exporting ? 'Generating…' : 'Export'}
+                <MdExpandMore size={16} style={{ marginLeft: 2 }} />
+              </button>
+
+              {exportMenuOpen && rows.length > 0 && (
+                <>
+                  <div style={{ position: 'fixed', inset: 0, zIndex: 40 }} onClick={() => setExportMenuOpen(false)} />
+                  <div style={{
+                    position: 'absolute', right: 0, top: 40, zIndex: 50,
+                    background: 'var(--card)', border: '1px solid var(--border)',
+                    borderRadius: 10, boxShadow: 'var(--card-shadow-md)',
+                    overflow: 'hidden', minWidth: 180,
+                  }}>
+                    {[
+                      { label: 'Excel (.xlsx)', sub: 'Formatted spreadsheet', icon: '📊', action: handleExportExcel },
+                      { label: 'PDF (.pdf)',    sub: 'Printable document',    icon: '📄', action: handleExportPDF   },
+                      { label: 'CSV (.csv)',    sub: 'Raw data / any app',    icon: '📋', action: handleExportCSV   },
+                    ].map(opt => (
+                      <button
+                        key={opt.label}
+                        onClick={opt.action}
+                        style={{
+                          display: 'flex', alignItems: 'center', gap: 10,
+                          width: '100%', padding: '10px 14px',
+                          background: 'transparent', border: 'none',
+                          borderBottom: '1px solid var(--border)',
+                          cursor: 'pointer', textAlign: 'left',
+                        }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                      >
+                        <span style={{ fontSize: 18, lineHeight: 1 }}>{opt.icon}</span>
+                        <div>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0 }}>{opt.label}</p>
+                          <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: 0 }}>{opt.sub}</p>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>

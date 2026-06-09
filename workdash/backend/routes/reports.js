@@ -212,8 +212,8 @@ async function fetchProjects(q) {
            p.project_budget as budget, p.hours_allocated,
            p.completion_percent as completion_pct,
            DATEDIFF(p.deadline, CURDATE()) as days_remaining,
-           COALESCE((SELECT COUNT(*) FROM ${tbl('project_tasks')} pt WHERE pt.project_id = p.id),0) as total_tasks,
-           COALESCE((SELECT COUNT(*) FROM ${tbl('project_tasks')} pt WHERE pt.project_id = p.id AND pt.status='completed'),0) as completed_tasks
+           COALESCE((SELECT COUNT(*) FROM ${tbl('tasks')} pt WHERE pt.project_id = p.id),0) as total_tasks,
+           COALESCE((SELECT COUNT(*) FROM ${tbl('tasks')} pt WHERE pt.project_id = p.id AND pt.status='completed'),0) as completed_tasks
     FROM ${tbl('projects')} p
     LEFT JOIN ${tbl('users')} pm_user ON pm_user.id = p.project_admin
     WHERE p.deleted_at IS NULL`;
