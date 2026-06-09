@@ -11,26 +11,31 @@ const NAV = [
   {
     section: 'MAIN',
     items: [
-      { to: '/', icon: MdDashboard, label: 'Overview' },
-      { to: '/attendance', icon: MdAccessTime, label: 'Attendance' },
-      { to: '/notifications', icon: MdNotifications, label: 'Alerts' },
+      { to: '/',             icon: MdDashboard,     label: 'Overview'     },
+      { to: '/attendance',   icon: MdAccessTime,    label: 'Attendance'   },
+      { to: '/notifications',icon: MdNotifications, label: 'Alerts'       },
+    ],
+  },
+  {
+    section: 'PEOPLE',
+    items: [
+      { to: '/team',   icon: MdPeople, label: 'Team'         },
+      { to: '/hr',     icon: MdBadge,  label: 'HR Dashboard' },
+      { to: '/person', icon: MdPerson, label: 'Per Person'   },
+    ],
+  },
+  {
+    section: 'PROJECTS',
+    items: [
+      { to: '/projects',          icon: MdFolderOpen, label: 'Projects'   },
+      { to: '/project-dashboard', icon: MdBarChart,   label: 'Analytics'  },
+      { to: '/timings',           icon: MdSchedule,   label: 'Timings'    },
     ],
   },
   {
     section: 'REPORTS',
     items: [
       { to: '/reports', icon: MdAssessment, label: 'Reports' },
-      { to: '/person', icon: MdPerson, label: 'Per Person' },
-      { to: '/project-dashboard', icon: MdBarChart,   label: 'Projects' },
-      { to: '/projects',          icon: MdFolderOpen, label: 'Project List' },
-      { to: '/timings', icon: MdSchedule, label: 'Timings' },
-    ],
-  },
-  {
-    section: 'TEAM',
-    items: [
-      { to: '/team', icon: MdPeople, label: 'All Employees' },
-      { to: '/hr',   icon: MdBadge,  label: 'HR Dashboard'  },
     ],
   },
   {
