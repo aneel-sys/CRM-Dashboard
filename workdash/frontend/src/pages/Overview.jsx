@@ -40,6 +40,77 @@ function getFormattedDate() {
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
+function GreetingHeader({ stats, loading, username }) {
+  const presentPct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : null;
+
+  const pulse = (() => {
+    if (presentPct === null || loading) return null;
+    if (presentPct >= 85 && (stats.late / stats.total) < 0.10)
+      return { label: 'Strong day',       color: '#1D9E75', bg: '#F0FDF4', border: '#A7F3D0', insight: 'Team attendance is excellent today.' };
+    if (presentPct >= 75)
+      return { label: 'Moderate',         color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', insight: `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''} clocked in late today.` };
+    if (presentPct >= 60)
+      return { label: 'Below average',    color: '#EA580C', bg: '#FFF7ED', border: '#FED7AA', insight: `${stats.absent || 0} absent — worth a check-in.` };
+    return   { label: 'Needs attention',  color: '#E24B4A', bg: '#FEF2F2', border: '#FECACA', insight: `High absenteeism — ${stats.absent || 0} employees not in today.` };
+  })();
+
+  return (
+    <div style={{
+      background: 'var(--card)',
+      borderRadius: 14,
+      borderLeft: '4px solid #1D9E75',
+      padding: '18px 24px',
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      flexWrap: 'wrap',
+      gap: 16,
+      boxShadow: 'var(--card-shadow)',
+    }}>
+      {/* Left — greeting */}
+      <div>
+        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
+          {getGreeting()}{username ? `, ${username}` : ''}
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
+          {getFormattedDate()}
+        </p>
+      </div>
+
+      {/* Right — attendance pulse */}
+      {pulse && (
+        <div style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 14,
+          background: pulse.bg,
+          border: `1px solid ${pulse.border}`,
+          borderRadius: 12,
+          padding: '10px 18px',
+        }}>
+          {/* Mini attendance bar */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+              <div style={{ width: 120, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
+                <div style={{ height: '100%', borderRadius: 3, background: pulse.color, width: `${presentPct}%`, transition: 'width 0.6s ease' }} />
+              </div>
+              <span style={{ fontSize: 13, fontWeight: 800, color: pulse.color, minWidth: 36 }}>{presentPct}%</span>
+            </div>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>attendance today</p>
+          </div>
+          {/* Divider */}
+          <div style={{ width: 1, height: 32, background: pulse.border }} />
+          {/* Status label + insight */}
+          <div>
+            <p style={{ fontSize: 12, fontWeight: 700, color: pulse.color, margin: 0 }}>{pulse.label}</p>
+            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0', maxWidth: 220 }}>{pulse.insight}</p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function SectionCard({ title, subtitle, children, action }) {
   return (
     <div className="card overflow-hidden">
@@ -241,20 +312,7 @@ export default function Overview() {
     <div className="space-y-5 fade-up">
 
       {/* ── Greeting header ───────────────────────────────────────────── */}
-      <div style={{
-        background: 'var(--card)',
-        borderRadius: 14,
-        borderLeft: '4px solid #1D9E75',
-        padding: '18px 24px',
-        boxShadow: 'var(--card-shadow)',
-      }}>
-        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
-          {getGreeting()}{user?.username ? `, ${user.username}` : ''}
-        </p>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
-          {getFormattedDate()}
-        </p>
-      </div>
+      <GreetingHeader stats={stats} loading={loading} username={user?.username} />
 
       {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
