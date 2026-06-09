@@ -169,9 +169,13 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/projects/dashboard-stats — KPI cards
+// GET /api/projects/dashboard-stats?period=all|month|week&month=&year=
 router.get('/dashboard-stats', requireAuth, async (req, res) => {
   try {
+    const period = req.query.period || 'all';
+    const month  = req.query.month ? parseInt(req.query.month) : new Date().getMonth() + 1;
+    const year   = req.query.year  ? parseInt(req.query.year)  : new Date().getFullYear();
+
     const [[{ totalProjects }]] = await pool.query(
       `SELECT COUNT(*) as totalProjects FROM ${tbl('projects')} WHERE deleted_at IS NULL`
     );
@@ -182,15 +186,27 @@ router.get('/dashboard-stats', requireAuth, async (req, res) => {
        JOIN ${tbl('projects')} p ON p.id = t.project_id
        WHERE t.deleted_at IS NULL AND p.deleted_at IS NULL`
     );
+
+    let hoursExtra = '', hoursParams = [];
+    if (period === 'month') {
+      hoursExtra = 'AND MONTH(ptl.created_at) = ? AND YEAR(ptl.created_at) = ?';
+      hoursParams = [month, year];
+    } else if (period === 'week') {
+      hoursExtra = 'AND ptl.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+    }
+
     let totalHours = 0;
     try {
       const [[h]] = await pool.query(
         `SELECT ROUND(COALESCE(SUM(ptl.total_hours), 0), 1) as h
          FROM ${tbl('project_time_logs')} ptl
-         JOIN ${tbl('projects')} p ON p.id = ptl.project_id WHERE p.deleted_at IS NULL`
+         JOIN ${tbl('projects')} p ON p.id = ptl.project_id
+         WHERE p.deleted_at IS NULL ${hoursExtra}`,
+        hoursParams
       );
       totalHours = Number(h.h) || 0;
     } catch {}
+
     const [[{ activeMembers }]] = await pool.query(
       `SELECT COUNT(DISTINCT pm.user_id) as activeMembers
        FROM ${tbl('project_members')} pm
@@ -210,17 +226,30 @@ router.get('/dashboard-stats', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/projects/hours-chart — hours per project for bar chart
+// GET /api/projects/hours-chart?period=all|month|week&month=&year=
 router.get('/hours-chart', requireAuth, async (req, res) => {
   try {
+    const period = req.query.period || 'all';
+    const month  = req.query.month ? parseInt(req.query.month) : new Date().getMonth() + 1;
+    const year   = req.query.year  ? parseInt(req.query.year)  : new Date().getFullYear();
+
+    let extra = '', params = [];
+    if (period === 'month') {
+      extra = 'AND MONTH(ptl.created_at) = ? AND YEAR(ptl.created_at) = ?';
+      params = [month, year];
+    } else if (period === 'week') {
+      extra = 'AND ptl.created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY)';
+    }
+
     let rows = [];
     try {
       [rows] = await pool.query(
         `SELECT p.project_name as name, ROUND(COALESCE(SUM(ptl.total_hours), 0), 1) as hours
          FROM ${tbl('projects')} p
          LEFT JOIN ${tbl('project_time_logs')} ptl ON ptl.project_id = p.id
-         WHERE p.deleted_at IS NULL
-         GROUP BY p.id, p.project_name ORDER BY hours DESC`
+         WHERE p.deleted_at IS NULL ${extra}
+         GROUP BY p.id, p.project_name ORDER BY hours DESC`,
+        params
       );
     } catch {}
     res.json({ success: true, data: rows.map(r => ({ name: r.name, hours: Number(r.hours) })) });

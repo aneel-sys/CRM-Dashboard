@@ -5,8 +5,10 @@ import {
   PieChart, Pie,
 } from 'recharts';
 import {
-  MdFolderOpen, MdCheckCircle, MdAccessTime, MdPeople,
+  MdFolderOpen, MdCheckCircle, MdAccessTime, MdPeople, MdFilterList,
 } from 'react-icons/md';
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
@@ -91,6 +93,11 @@ export default function ProjectDashboard() {
   const navigate       = useNavigate();
   const toast          = useToast();
 
+  const now = new Date();
+  const [period,       setPeriod]       = useState('all');   // 'all' | 'month' | 'week'
+  const [month,        setMonth]        = useState(now.getMonth() + 1);
+  const [year,         setYear]         = useState(now.getFullYear());
+
   const [loading,      setLoading]      = useState(true);
   const [stats,        setStats]        = useState(null);
   const [projects,     setProjects]     = useState([]);
@@ -99,12 +106,24 @@ export default function ProjectDashboard() {
   const [contributors, setContributors] = useState([]);
   const [activity,     setActivity]     = useState([]);
 
+  const periodParams = period === 'month'
+    ? { period: 'month', month, year }
+    : period === 'week'
+    ? { period: 'week' }
+    : { period: 'all' };
+
+  const periodLabel = period === 'month'
+    ? `${MONTHS[month - 1]} ${year}`
+    : period === 'week'
+    ? 'Last 7 Days'
+    : 'All Time';
+
   useEffect(() => {
     setLoading(true);
     Promise.all([
-      api.get('/projects/dashboard-stats'),
+      api.get('/projects/dashboard-stats', { params: periodParams }),
       api.get('/projects'),
-      api.get('/projects/hours-chart'),
+      api.get('/projects/hours-chart',     { params: periodParams }),
       api.get('/projects/task-priority'),
       api.get('/projects/top-contributors'),
       api.get('/projects/recent-activity'),
@@ -117,7 +136,7 @@ export default function ProjectDashboard() {
       setActivity(a.data.data || []);
     }).catch(() => toast('Failed to load project dashboard'))
       .finally(() => setLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, period, month, year]);
 
   const maxHours         = contributors[0]?.hours || 1;
   const priorityData     = taskPriority.map(t => ({
@@ -129,21 +148,58 @@ export default function ProjectDashboard() {
   return (
     <div className="space-y-5 fade-up">
 
+      {/* ── Period Filter ──────────────────────────────────────────────── */}
+      <div className="card px-5 py-3 flex flex-wrap items-center gap-3">
+        <MdFilterList size={15} style={{ color: 'var(--text-muted)' }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: 'var(--text-muted)' }}>Period:</span>
+        <div style={{ display: 'flex', gap: 4, background: 'var(--bg)', borderRadius: 8, padding: 3 }}>
+          {[['all', 'All Time'], ['month', 'Month'], ['week', 'This Week']].map(([val, label]) => (
+            <button key={val} onClick={() => setPeriod(val)}
+              style={{
+                padding: '5px 14px', borderRadius: 6, fontSize: 12, fontWeight: 600, border: 'none', cursor: 'pointer',
+                background: period === val ? 'var(--primary)' : 'transparent',
+                color: period === val ? '#fff' : 'var(--text-muted)',
+                transition: 'all 0.15s',
+              }}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {period === 'month' && (
+          <>
+            <select value={month} onChange={e => setMonth(Number(e.target.value))}
+              className="form-input form-select" style={{ height: 32, fontSize: 12, paddingRight: 28 }}>
+              {MONTHS.map((m, i) => <option key={i} value={i + 1}>{m}</option>)}
+            </select>
+            <select value={year} onChange={e => setYear(Number(e.target.value))}
+              className="form-input form-select" style={{ height: 32, fontSize: 12, paddingRight: 28 }}>
+              {[2023, 2024, 2025, 2026].map(y => <option key={y}>{y}</option>)}
+            </select>
+          </>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 12, fontWeight: 600, color: 'var(--primary)' }}>
+          Showing: {periodLabel}
+        </span>
+      </div>
+
       {/* ── KPI Cards ──────────────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Projects"    icon={MdFolderOpen}   color="#1D9E75"
+        <StatCard title="Total Projects"  icon={MdFolderOpen}  color="#1D9E75"
           value={loading ? '—' : (stats?.totalProjects ?? '—')}
-          sub="in system" loading={loading} />
-        <StatCard title="Tasks Completed"   icon={MdCheckCircle}  color="#378ADD"
-          value={loading ? '—' : `${stats?.taskCompletion?.pct ?? 0}%`}
-          sub={loading ? '' : `${stats?.taskCompletion?.done ?? 0} / ${stats?.taskCompletion?.total ?? 0} tasks`}
+          sub="active · all in progress"
           loading={loading} />
-        <StatCard title="Hours Logged"      icon={MdAccessTime}   color="#EF9F27"
-          value={loading ? '—' : `${stats?.totalHours ?? 0}h`}
-          sub="across all projects" loading={loading} />
-        <StatCard title="Active Members"    icon={MdPeople}       color="#8B5CF6"
+        <StatCard title="Tasks Completed" icon={MdCheckCircle} color="#378ADD"
+          value={loading ? '—' : `${stats?.taskCompletion?.pct ?? 0}%`}
+          sub={loading ? '' : `${stats?.taskCompletion?.done ?? 0} done · ${(stats?.taskCompletion?.total ?? 0) - (stats?.taskCompletion?.done ?? 0)} remaining`}
+          loading={loading} />
+        <StatCard title="Hours Logged" icon={MdAccessTime} color="#EF9F27"
+          value={loading ? '—' : `${Number(stats?.totalHours ?? 0).toLocaleString()}h`}
+          sub={loading ? '' : periodLabel}
+          loading={loading} />
+        <StatCard title="Team on Projects" icon={MdPeople} color="#8B5CF6"
           value={loading ? '—' : (stats?.activeMembers ?? '—')}
-          sub="assigned to projects" loading={loading} />
+          sub={loading ? '' : `members across ${stats?.totalProjects ?? 0} projects`}
+          loading={loading} />
       </div>
 
       {/* ── Project Cards ──────────────────────────────────────────────── */}
@@ -240,7 +296,7 @@ export default function ProjectDashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
 
         <div className="lg:col-span-3">
-          <SectionCard title="Hours by Project" subtitle="All-time logged hours per project">
+          <SectionCard title="Hours by Project" subtitle={`${periodLabel} · hours logged per project`}>
             {loading ? (
               <div className="skeleton rounded" style={{ height: 200 }} />
             ) : hoursChart.length === 0 ? (
