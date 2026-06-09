@@ -129,11 +129,11 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     try {
       const [ph] = await pool.query(
         `SELECT p.id, p.project_name as name,
-                COALESCE(SUM(tl.total_hours), 0) as hours
+                COALESCE(SUM(CAST(tl.total_hours AS DECIMAL(10,2))), 0) as hours
          FROM ${tbl('project_time_logs')} tl
          JOIN ${tbl('projects')} p ON p.id = tl.project_id
          WHERE tl.user_id = ?
-           AND MONTH(tl.created_at) = ? AND YEAR(tl.created_at) = ?
+           AND MONTH(tl.start_time) = ? AND YEAR(tl.start_time) = ?
          GROUP BY p.id, p.project_name
          ORDER BY hours DESC`,
         [id, month, year]
@@ -143,11 +143,11 @@ router.get('/:id/report', requireAuth, async (req, res) => {
       try {
         const [ph] = await pool.query(
           `SELECT p.id, p.project_name as name,
-                  COALESCE(SUM(tl.total_hours), 0) as hours
+                  COALESCE(SUM(CAST(tl.total_hours AS DECIMAL(10,2))), 0) as hours
            FROM ${tbl('timelogs')} tl
            JOIN ${tbl('projects')} p ON p.id = tl.project_id
            WHERE tl.user_id = ?
-             AND MONTH(tl.created_at) = ? AND YEAR(tl.created_at) = ?
+             AND MONTH(tl.start_time) = ? AND YEAR(tl.start_time) = ?
            GROUP BY p.id, p.project_name
            ORDER BY hours DESC`,
           [id, month, year]

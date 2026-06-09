@@ -10,7 +10,7 @@ async function queryTimelogs(pool, tbl, extraWhere, params) {
     SELECT tl.id, u.id as user_id, u.name as employee_name,
            p.project_name, t.heading as task_name,
            tl.total_hours, tl.memo as notes,
-           DATE_FORMAT(tl.created_at, '%Y-%m-%d') as log_date, tl.created_at
+           DATE_FORMAT(tl.start_time, '%Y-%m-%d') as log_date, tl.start_time as created_at
     FROM ${tbl(table)} tl
     JOIN ${tbl('users')} u ON u.id = tl.user_id
     LEFT JOIN ${tbl('projects')} p ON p.id = tl.project_id
@@ -38,8 +38,8 @@ router.get('/', requireAuth, async (req, res) => {
     const params = [];
     let where = '';
 
-    if (from) { where += ' AND DATE(tl.created_at) >= ?'; params.push(from); }
-    if (to) { where += ' AND DATE(tl.created_at) <= ?'; params.push(to); }
+    if (from) { where += ' AND DATE(tl.start_time) >= ?'; params.push(from); }
+    if (to) { where += ' AND DATE(tl.start_time) <= ?'; params.push(to); }
     if (user_id) { where += ' AND tl.user_id = ?'; params.push(user_id); }
     if (project_id) { where += ' AND tl.project_id = ?'; params.push(project_id); }
 
@@ -72,8 +72,8 @@ router.get('/export', requireAuth, async (req, res) => {
     const params = [];
     let where = '';
 
-    if (from) { where += ' AND DATE(tl.created_at) >= ?'; params.push(from); }
-    if (to) { where += ' AND DATE(tl.created_at) <= ?'; params.push(to); }
+    if (from) { where += ' AND DATE(tl.start_time) >= ?'; params.push(from); }
+    if (to) { where += ' AND DATE(tl.start_time) <= ?'; params.push(to); }
     if (user_id) { where += ' AND tl.user_id = ?'; params.push(user_id); }
     if (project_id) { where += ' AND tl.project_id = ?'; params.push(project_id); }
 
