@@ -246,40 +246,14 @@ export default function Overview() {
         borderRadius: 14,
         borderLeft: '4px solid #1D9E75',
         padding: '18px 24px',
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'space-between',
-        flexWrap: 'wrap',
-        gap: 12,
         boxShadow: 'var(--card-shadow)',
       }}>
-        <div>
-          <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
-            {getGreeting()}{user?.username ? `, ${user.username}` : ''}
-          </p>
-          <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
-            {getFormattedDate()}
-          </p>
-        </div>
-        <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {[
-            { label: 'Present',  value: stats.present ?? '—', sub: `of ${stats.total ?? '—'}`, color: '#1D9E75' },
-            { label: 'Late',     value: stats.late    ?? '—', sub: 'today',                    color: '#EF9F27' },
-            { label: 'On Leave', value: stats.onLeave ?? '—', sub: 'approved',                 color: '#8B5CF6' },
-          ].map(item => (
-            <div key={item.label} style={{
-              borderRadius: 10,
-              padding: '8px 18px',
-              textAlign: 'center',
-              background: 'var(--bg)',
-              border: '1px solid var(--border)',
-            }}>
-              <p style={{ fontSize: 20, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
-              <p style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-secondary)', margin: 0 }}>{item.label}</p>
-              <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.sub}</p>
-            </div>
-          ))}
-        </div>
+        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
+          {getGreeting()}{user?.username ? `, ${user.username}` : ''}
+        </p>
+        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
+          {getFormattedDate()}
+        </p>
       </div>
 
       {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
