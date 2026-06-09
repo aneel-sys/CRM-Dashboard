@@ -33,6 +33,18 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     const year = parseInt(req.query.year) || new Date().getFullYear();
     const officeStart = await getOfficeStartTime();
 
+    // Fetch which days the office is open (Worksuite: 1=Mon…7=Sun → JS getDay: 0=Sun,1=Mon…6=Sat)
+    let officeDays = [1, 2, 3, 4, 5]; // Mon-Fri fallback
+    try {
+      const [[as]] = await pool.query(
+        `SELECT office_open_days FROM ${tbl('attendance_settings')} LIMIT 1`
+      );
+      if (as?.office_open_days) {
+        const parsed = JSON.parse(as.office_open_days);
+        officeDays = parsed.map(d => Number(d) === 7 ? 0 : Number(d));
+      }
+    } catch {}
+
     // Employee info
     const [[employee]] = await pool.query(
       `SELECT u.id, u.name, u.email,
@@ -80,7 +92,7 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     const leaveDays = leaveRows.length;
 
     // Working days in month (Mon-Fri)
-    const workingDays = getWorkingDays(year, month);
+    const workingDays = getWorkingDays(year, month, officeDays);
     const absentDays = Math.max(0, workingDays - presentDays - leaveDays);
 
     // Average clock-in / clock-out
@@ -92,8 +104,8 @@ router.get('/:id/report', requireAuth, async (req, res) => {
     // Total hours
     const totalHours = attendanceRows.reduce((s, r) => s + (parseFloat(r.hours) || 0), 0);
 
-    // Attendance rate
-    const attendanceRate = workingDays ? Math.round((presentDays / workingDays) * 100) : 0;
+    // Attendance rate — capped at 100% (extra Saturday work can push presentDays > workingDays)
+    const attendanceRate = workingDays ? Math.min(100, Math.round((presentDays / workingDays) * 100)) : 0;
 
     // Daily hours array
     const dailyHours = attendanceRows.map(r => ({
@@ -159,13 +171,19 @@ router.get('/:id/report', requireAuth, async (req, res) => {
   }
 });
 
-function getWorkingDays(year, month) {
-  const date = new Date(year, month - 1, 1);
+function getWorkingDays(year, month, officeDays = [1, 2, 3, 4, 5]) {
+  const now = new Date();
+  const isCurrentMonth = (year === now.getFullYear() && month === now.getMonth() + 1);
+  const start = new Date(year, month - 1, 1);
+  // For the current month count only elapsed days; for past months count the full month
+  const end = isCurrentMonth
+    ? new Date(now.getFullYear(), now.getMonth(), now.getDate())
+    : new Date(year, month, 0);
   let count = 0;
-  while (date.getMonth() === month - 1) {
-    const day = date.getDay();
-    if (day !== 0 && day !== 6) count++;
-    date.setDate(date.getDate() + 1);
+  const d = new Date(start);
+  while (d <= end) {
+    if (officeDays.includes(d.getDay())) count++;
+    d.setDate(d.getDate() + 1);
   }
   return count;
 }
