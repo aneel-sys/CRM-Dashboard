@@ -4,6 +4,7 @@ import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdSettings } from 'react-ic
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationPanel from './NotificationPanel';
+import { useSSEConnected } from '../context/SSEContext';
 
 const iconBtn = {
   display: 'inline-flex',
@@ -24,6 +25,7 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
+  const sseConnected = useSSEConnected();
   const [elapsed, setElapsed] = useState(0);
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -68,15 +70,41 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
       {/* Right — controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
 
-        {/* Refresh pill */}
+        {/* SSE live indicator */}
+        <div style={{
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          height: 32,
+          padding: '0 10px',
+          borderRadius: 999,
+          border: `1px solid ${sseConnected ? '#A7F3D0' : 'var(--border)'}`,
+          background: sseConnected ? '#ECFDF5' : 'var(--bg)',
+          color: sseConnected ? 'var(--primary-dark)' : 'var(--text-muted)',
+          fontSize: 12,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          transition: 'all 0.3s',
+        }}>
+          <span style={{
+            width: 7, height: 7, borderRadius: '50%', flexShrink: 0,
+            background: sseConnected ? 'var(--primary)' : '#9CA3AF',
+            boxShadow: sseConnected ? '0 0 0 2px #6EE7B7' : 'none',
+            animation: sseConnected ? 'ssePulse 2s infinite' : 'none',
+          }} />
+          {sseConnected ? 'Live' : 'Connecting…'}
+        </div>
+
+        {/* Manual refresh button */}
         <button
           onClick={onRefresh}
+          title="Refresh all data now"
           style={{
             display: 'inline-flex',
             alignItems: 'center',
-            gap: 6,
+            gap: 5,
             height: 32,
-            padding: '0 12px',
+            padding: '0 10px',
             borderRadius: 999,
             border: '1px solid var(--border)',
             background: 'var(--bg)',
@@ -86,11 +114,12 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
             cursor: 'pointer',
             whiteSpace: 'nowrap',
           }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
         >
           <MdRefresh size={14} style={{ color: 'var(--primary)', flexShrink: 0 }} />
-          <span>Auto-refresh: 60s</span>
-          <span style={{ color: elapsed > 50 ? 'var(--warning)' : 'var(--primary)', fontWeight: 700 }}>
-            · {elapsed}s ago
+          <span style={{ color: elapsed > 120 ? 'var(--warning)' : 'var(--text-muted)' }}>
+            {elapsed}s ago
           </span>
         </button>
 

@@ -11,6 +11,7 @@ const PAGE_TITLES = {
   '/projects':       'Projects Overview',
   '/timings':        'Timings / Timesheets',
   '/team':           'All Employees',
+  '/reports':        'Reports & Exports',
   '/notifications':  'Alerts & Notifications',
   '/settings':       'Settings',
 };

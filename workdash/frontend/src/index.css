@@ -206,3 +206,5 @@ input:focus-visible, select:focus-visible, button:focus-visible {
   color: var(--text-muted);
   margin-top: 2px;
 }
+
+@keyframes ssePulse { 0%,100% { box-shadow: 0 0 0 2px #6EE7B7; } 50% { box-shadow: 0 0 0 4px #A7F3D0; } }

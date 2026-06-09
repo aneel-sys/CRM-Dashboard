@@ -1,14 +1,15 @@
 import { createContext, useContext, useEffect, useRef, useState } from 'react';
 import { useAuth } from './AuthContext';
 
-const SSECtx = createContext({});
+const SSECtx = createContext({ events: {}, connected: false });
 
 export function SSEProvider({ children }) {
   const { user } = useAuth();
-  const [events, setEvents] = useState({});
-  const esRef       = useRef(null);
-  const retryRef    = useRef(null);
-  const retryDelay  = useRef(2000);
+  const [events, setEvents]       = useState({});
+  const [connected, setConnected] = useState(false);
+  const esRef      = useRef(null);
+  const retryRef   = useRef(null);
+  const retryDelay = useRef(2000);
 
   useEffect(() => {
     if (!user) return;
@@ -17,7 +18,7 @@ export function SSEProvider({ children }) {
       const es = new EventSource('/api/stream', { withCredentials: true });
       esRef.current = es;
 
-      es.onopen = () => { retryDelay.current = 2000; };
+      es.onopen = () => { setConnected(true); retryDelay.current = 2000; };
 
       ['overview', 'notifications', 'tick'].forEach(type => {
         es.addEventListener(type, (e) => {
@@ -29,9 +30,9 @@ export function SSEProvider({ children }) {
       });
 
       es.onerror = () => {
+        setConnected(false);
         es.close();
         esRef.current = null;
-        // Exponential backoff: 2s → 4s → 8s → max 30s
         retryRef.current = setTimeout(() => {
           retryDelay.current = Math.min(retryDelay.current * 2, 30_000);
           connect();
@@ -44,19 +45,19 @@ export function SSEProvider({ children }) {
     return () => {
       esRef.current?.close();
       clearTimeout(retryRef.current);
+      setConnected(false);
     };
   }, [user]);
 
-  return <SSECtx.Provider value={events}>{children}</SSECtx.Provider>;
+  return <SSECtx.Provider value={{ events, connected }}>{children}</SSECtx.Provider>;
 }
 
-// usage: const sseOverview = useSSE('overview');  → { data, ts } or undefined
+// useSSE('overview') → { data, ts } | undefined
 export function useSSE(type) {
-  return useContext(SSECtx)[type];
+  return useContext(SSECtx).events[type];
 }
 
-// convenience: just the connected status
+// true once EventSource fires onopen
 export function useSSEConnected() {
-  const ctx = useContext(SSECtx);
-  return Object.keys(ctx).length > 0;
+  return useContext(SSECtx).connected;
 }
