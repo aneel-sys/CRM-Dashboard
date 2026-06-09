@@ -104,7 +104,7 @@ export default function HR() {
   const [headcount,    setHeadcount]    = useState([]);
   const [gender,       setGender]       = useState([]);
   const [empTypes,     setEmpTypes]     = useState([]);
-  const [leaveBalances,setLeaveBalances]= useState([]);
+  const [leaveUsage,   setLeaveUsage]   = useState({ employees: [], withLeave: 0 });
   const [departments,  setDepartments]  = useState([]);
   const [joiners,      setJoiners]      = useState([]);
   const [expiring,     setExpiring]     = useState([]);
@@ -128,7 +128,7 @@ export default function HR() {
       api.get('/hr/headcount'),
       api.get('/hr/gender'),
       api.get('/hr/employment-types'),
-      api.get('/hr/leave-balances'),
+      api.get('/hr/leave-usage'),
       api.get('/hr/departments'),
       api.get('/hr/new-joiners'),
       api.get('/hr/expiring'),
@@ -137,7 +137,7 @@ export default function HR() {
       setHeadcount(h.data.headcount || []);
       setGender(g.data.gender || []);
       setEmpTypes(t.data.types || []);
-      setLeaveBalances(l.data.balances || []);
+      setLeaveUsage({ employees: l.data.employees || [], withLeave: l.data.withLeave || 0 });
       setDepartments(d.data.departments || []);
       setJoiners(j.data.joiners || []);
       setExpiring(e.data.expiring || []);
@@ -256,69 +256,102 @@ export default function HR() {
 
         <div className="lg:col-span-3">
           <SectionCard
-            title="Leave Balance Overview"
-            subtitle="Average utilization per employee · current year"
-            action={<MdBeachAccess size={16} style={{ color: 'var(--text-muted)' }} />}
+            title="Leave Usage · This Year"
+            subtitle={leaveUsage.withLeave > 0 ? `${leaveUsage.withLeave} of ${summary.total} employees have taken leave` : 'Leave usage by employee'}
+            action={
+              <button onClick={() => navigate('/reports')} className="btn btn-ghost text-xs"
+                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                Reports →
+              </button>
+            }
           >
             {summaryLoading ? (
-              <div className="grid grid-cols-3 gap-3">
-                {[1, 2, 3].map(i => <div key={i} className="skeleton rounded-xl" style={{ height: 130 }} />)}
+              <div className="space-y-3">
+                {[1,2,3,4,5].map(i => <div key={i} className="skeleton rounded-xl" style={{ height: 52 }} />)}
               </div>
-            ) : leaveBalances.length === 0 ? (
+            ) : leaveUsage.employees.length === 0 ? (
               <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No leave data available</p>
+                <MdBeachAccess size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+                <p className="text-sm">No leave taken yet this year</p>
               </div>
             ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: `repeat(${leaveBalances.length}, 1fr)`, gap: 12 }}>
-                {leaveBalances.map(lb => {
-                  const empCount  = Number(lb.employees) || 1;
-                  const totalUsed = parseFloat(lb.total_used) || 0;
-                  const totalQuota= parseFloat(lb.total_quota) || 0;
-                  const avgUsed   = empCount > 0 ? totalUsed / empCount : 0;
-                  const quota     = parseFloat(lb.quota_per_person) || 0;
-                  const pct       = quota > 0 ? Math.min(100, Math.round((avgUsed / quota) * 100)) : 0;
-                  const barColor  = lb.color || '#1D9E75';
-                  const avgRemain = quota - avgUsed;
-                  return (
-                    <div key={lb.id} style={{
-                      border: '1px solid var(--border)', borderRadius: 14,
-                      padding: '18px 16px', background: 'var(--bg)',
-                      borderTop: `3px solid ${barColor}`,
-                    }}>
-                      {/* Type name */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
-                        <span style={{ width: 8, height: 8, borderRadius: '50%', background: barColor, flexShrink: 0 }} />
-                        <span style={{ fontSize: 12, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
-                          {lb.type_name}
-                        </span>
+              <div>
+                {/* Column headers */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: 8, paddingBottom: 8, borderBottom: '1px solid var(--border)', marginBottom: 4 }}>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Employee</span>
+                  <span style={{ fontSize: 10, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', textAlign: 'right' }}>Used · Left</span>
+                </div>
+
+                <div className="space-y-1">
+                  {leaveUsage.employees.map((emp, idx) => {
+                    const maxUsed = leaveUsage.employees[0]?.totalUsed || 1;
+                    const pct = Math.round((emp.totalUsed / maxUsed) * 100);
+                    return (
+                      <div key={emp.id}
+                        onClick={() => navigate(`/person?id=${emp.id}`)}
+                        style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '9px 8px', borderRadius: 10, cursor: 'pointer', transition: 'background 0.15s' }}
+                        onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                        onMouseLeave={e => e.currentTarget.style.background = ''}
+                      >
+                        {/* Rank */}
+                        <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', minWidth: 16, textAlign: 'center' }}>#{idx + 1}</span>
+
+                        {/* Avatar */}
+                        <Avatar name={emp.name} size={34} />
+
+                        {/* Name + dept + leave type pills */}
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {emp.name}
+                          </p>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 3, flexWrap: 'wrap' }}>
+                            <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>{emp.department || '—'}</span>
+                            <span style={{ color: 'var(--border)' }}>·</span>
+                            {emp.types.filter(t => t.used > 0).map(t => (
+                              <span key={t.type_name} style={{
+                                fontSize: 10, fontWeight: 600, padding: '1px 6px', borderRadius: 4,
+                                background: (t.color || '#1D9E75') + '22',
+                                color: t.color || '#1D9E75',
+                                border: `1px solid ${(t.color || '#1D9E75')}44`,
+                              }}>
+                                {t.type_name} {t.used}d
+                              </span>
+                            ))}
+                            {emp.types.every(t => t.used === 0) && (
+                              <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>no leave taken</span>
+                            )}
+                          </div>
+                          {/* Mini usage bar */}
+                          <div style={{ height: 3, borderRadius: 2, background: 'var(--border)', overflow: 'hidden', marginTop: 5 }}>
+                            <div style={{ height: '100%', borderRadius: 2, background: 'var(--primary)', width: `${pct}%`, transition: 'width 0.5s ease' }} />
+                          </div>
+                        </div>
+
+                        {/* Used · Remaining */}
+                        <div style={{ textAlign: 'right', flexShrink: 0 }}>
+                          <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', margin: 0 }}>{emp.totalUsed.toFixed(1)}d</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{emp.totalRemaining.toFixed(0)}d left</p>
+                        </div>
                       </div>
-                      {/* Big avg number */}
-                      <p style={{ fontSize: 32, fontWeight: 800, color: barColor, margin: '0 0 1px', lineHeight: 1 }}>
-                        {avgUsed.toFixed(1)}
-                        <span style={{ fontSize: 14, fontWeight: 500, color: 'var(--text-muted)' }}>d</span>
-                      </p>
-                      <p style={{ fontSize: 11, color: 'var(--text-muted)', margin: '0 0 14px' }}>
-                        avg used · {quota}d allocated
-                      </p>
-                      {/* Progress bar */}
-                      <div style={{ height: 6, borderRadius: 3, background: 'var(--border)', overflow: 'hidden', marginBottom: 8 }}>
-                        <div style={{ height: '100%', borderRadius: 3, background: barColor, width: `${pct}%`, transition: 'width 0.6s ease' }} />
-                      </div>
-                      {/* Bottom stats */}
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 11, fontWeight: 700, color: barColor }}>{pct}%</span>
-                        <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>
-                          {avgRemain > 0 ? `${avgRemain.toFixed(1)}d left avg` : 'fully used'}
-                        </span>
-                      </div>
-                      {/* Total across team */}
-                      <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: 10, color: 'var(--text-muted)' }}>Total used</span>
-                        <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-secondary)' }}>{totalUsed} / {totalQuota}d</span>
-                      </div>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
+                </div>
+
+                {/* Footer — remaining count */}
+                {leaveUsage.withLeave > leaveUsage.employees.length && (
+                  <div style={{
+                    marginTop: 10, paddingTop: 10, borderTop: '1px solid var(--border)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  }}>
+                    <span style={{ fontSize: 12, color: 'var(--text-muted)' }}>
+                      +{leaveUsage.withLeave - leaveUsage.employees.length} more employees with leave
+                    </span>
+                    <button onClick={() => navigate('/reports')} className="btn btn-ghost"
+                      style={{ fontSize: 11, color: 'var(--primary)', height: 26, padding: '0 10px' }}>
+                      View in Reports →
+                    </button>
+                  </div>
+                )}
               </div>
             )}
           </SectionCard>

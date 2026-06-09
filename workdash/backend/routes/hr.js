@@ -226,6 +226,61 @@ router.get('/expiring', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/hr/leave-usage — top 5 employees by leave taken + total counts
+router.get('/leave-usage', requireAuth, async (req, res) => {
+  try {
+    // top 5 employees by total leaves used
+    const [topRows] = await pool.query(
+      `SELECT u.id, u.name, t.team_name as department,
+              lt.id as type_id, lt.type_name, lt.color,
+              elq.leaves_used as used,
+              elq.no_of_leaves as allocated,
+              elq.leaves_remaining as remaining
+       FROM (
+         SELECT u2.id, SUM(e2.leaves_used) as total_used
+         FROM ${tbl('users')} u2
+         JOIN ${tbl('employee_leave_quotas')} e2 ON e2.user_id = u2.id
+         WHERE u2.status = 'active'
+         GROUP BY u2.id
+         HAVING total_used > 0
+         ORDER BY total_used DESC
+         LIMIT 5
+       ) top
+       JOIN ${tbl('users')} u ON u.id = top.id
+       JOIN ${tbl('employee_leave_quotas')} elq ON elq.user_id = u.id
+       JOIN ${tbl('leave_types')} lt ON lt.id = elq.leave_type_id AND lt.deleted_at IS NULL
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} t ON t.id = ed.department_id
+       ORDER BY top.total_used DESC, lt.id ASC`
+    );
+
+    // total employees with any leave used
+    const [[{ withLeave }]] = await pool.query(
+      `SELECT COUNT(DISTINCT user_id) as withLeave
+       FROM ${tbl('employee_leave_quotas')}
+       WHERE leaves_used > 0`
+    );
+
+    // group by employee
+    const map = {};
+    topRows.forEach(r => {
+      if (!map[r.id]) map[r.id] = {
+        id: r.id, name: r.name, department: r.department,
+        types: [], totalUsed: 0, totalRemaining: 0,
+      };
+      const used = parseFloat(r.used) || 0;
+      const rem  = parseFloat(r.remaining) || 0;
+      map[r.id].types.push({ type_name: r.type_name, color: r.color, used, allocated: parseFloat(r.allocated) || 0, remaining: rem });
+      map[r.id].totalUsed      += used;
+      map[r.id].totalRemaining += rem;
+    });
+
+    res.json({ success: true, employees: Object.values(map), withLeave: Number(withLeave) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/hr/leave-balance/:userId — per-employee leave quota
 router.get('/leave-balance/:userId', requireAuth, async (req, res) => {
   try {
