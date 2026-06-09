@@ -198,8 +198,9 @@ router.get('/export', requireAuth, async (req, res) => {
       hoursMap[e.id] || 0,
     ]);
 
-    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
+    const BOM = '﻿';
+    const csv = BOM + [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="team_${month}_${year}.csv"`);
     res.send(csv);
   } catch (err) {

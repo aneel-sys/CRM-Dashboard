@@ -89,8 +89,9 @@ router.get('/export', requireAuth, async (req, res) => {
       `"${(r.notes || '').replace(/"/g, "'")}"`,
     ]);
 
-    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
+    const BOM = '﻿';
+    const csv = BOM + [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="timings_export.csv"`);
     res.send(csv);
   } catch (err) {

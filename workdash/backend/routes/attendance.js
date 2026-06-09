@@ -132,20 +132,31 @@ router.get('/export', requireAuth, async (req, res) => {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
     }
 
-    const headers = ['Name', 'Department', 'Designation', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
+    const fmtTime = dt => {
+      if (!dt) return '';
+      const d = new Date(dt);
+      const h = String(d.getHours()).padStart(2, '0');
+      const m = String(d.getMinutes()).padStart(2, '0');
+      return `${h}:${m}`;
+    };
+
+    const headers = ['Name', 'Department', 'Designation', 'Date', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
     const csvRows = rows.map(r => [
       `"${r.name}"`,
       `"${r.department || ''}"`,
       `"${r.designation || ''}"`,
-      r.clock_in_time ? `"${new Date(r.clock_in_time).toLocaleTimeString()}"` : '"—"',
-      r.clock_out_time ? `"${new Date(r.clock_out_time).toLocaleTimeString()}"` : '"—"',
+      `"${date}"`,
+      `"${fmtTime(r.clock_in_time)}"`,
+      `"${fmtTime(r.clock_out_time)}"`,
       r.delay_minutes > 0 ? r.delay_minutes : 0,
-      r.hours_worked || 0,
+      r.hours_worked ? parseFloat(r.hours_worked).toFixed(1) : '0.0',
       `"${r.attendance_status}"`,
     ]);
 
-    const csv = [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
-    res.setHeader('Content-Type', 'text/csv');
+    // UTF-8 BOM so Excel opens the file correctly without mojibake
+    const BOM = '﻿';
+    const csv = BOM + [headers.join(','), ...csvRows.map(r => r.join(','))].join('\n');
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="attendance_${date}.csv"`);
     res.send(csv);
   } catch (err) {
