@@ -169,6 +169,117 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/projects/dashboard-stats — KPI cards
+router.get('/dashboard-stats', requireAuth, async (req, res) => {
+  try {
+    const [[{ totalProjects }]] = await pool.query(
+      `SELECT COUNT(*) as totalProjects FROM ${tbl('projects')} WHERE deleted_at IS NULL`
+    );
+    const [[taskStats]] = await pool.query(
+      `SELECT COUNT(*) as total,
+              SUM(CASE WHEN t.status = 'completed' THEN 1 ELSE 0 END) as done
+       FROM ${tbl('tasks')} t
+       JOIN ${tbl('projects')} p ON p.id = t.project_id
+       WHERE t.deleted_at IS NULL AND p.deleted_at IS NULL`
+    );
+    let totalHours = 0;
+    try {
+      const [[h]] = await pool.query(
+        `SELECT ROUND(COALESCE(SUM(ptl.total_hours), 0), 1) as h
+         FROM ${tbl('project_time_logs')} ptl
+         JOIN ${tbl('projects')} p ON p.id = ptl.project_id WHERE p.deleted_at IS NULL`
+      );
+      totalHours = Number(h.h) || 0;
+    } catch {}
+    const [[{ activeMembers }]] = await pool.query(
+      `SELECT COUNT(DISTINCT pm.user_id) as activeMembers
+       FROM ${tbl('project_members')} pm
+       JOIN ${tbl('projects')} p ON p.id = pm.project_id WHERE p.deleted_at IS NULL`
+    );
+    const total = Number(taskStats.total) || 0;
+    const done  = Number(taskStats.done)  || 0;
+    res.json({
+      success: true,
+      totalProjects: Number(totalProjects),
+      taskCompletion: { done, total, pct: total > 0 ? Math.round((done / total) * 100) : 0 },
+      totalHours,
+      activeMembers: Number(activeMembers),
+    });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/projects/hours-chart — hours per project for bar chart
+router.get('/hours-chart', requireAuth, async (req, res) => {
+  try {
+    let rows = [];
+    try {
+      [rows] = await pool.query(
+        `SELECT p.project_name as name, ROUND(COALESCE(SUM(ptl.total_hours), 0), 1) as hours
+         FROM ${tbl('projects')} p
+         LEFT JOIN ${tbl('project_time_logs')} ptl ON ptl.project_id = p.id
+         WHERE p.deleted_at IS NULL
+         GROUP BY p.id, p.project_name ORDER BY hours DESC`
+      );
+    } catch {}
+    res.json({ success: true, data: rows.map(r => ({ name: r.name, hours: Number(r.hours) })) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/projects/task-priority — priority distribution donut
+router.get('/task-priority', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT t.priority, COUNT(*) as count
+       FROM ${tbl('tasks')} t
+       JOIN ${tbl('projects')} p ON p.id = t.project_id
+       WHERE t.deleted_at IS NULL AND p.deleted_at IS NULL
+       GROUP BY t.priority`
+    );
+    res.json({ success: true, data: rows.map(r => ({ priority: r.priority, count: Number(r.count) })) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/projects/top-contributors — top 5 members by hours logged
+router.get('/top-contributors', requireAuth, async (req, res) => {
+  try {
+    let rows = [];
+    try {
+      [rows] = await pool.query(
+        `SELECT u.id, u.name, ROUND(SUM(ptl.total_hours), 1) as hours,
+                COUNT(DISTINCT ptl.project_id) as projects
+         FROM ${tbl('project_time_logs')} ptl
+         JOIN ${tbl('users')} u ON u.id = ptl.user_id
+         GROUP BY u.id, u.name ORDER BY hours DESC LIMIT 5`
+      );
+    } catch {}
+    res.json({ success: true, data: rows.map(r => ({ id: r.id, name: r.name, hours: Number(r.hours), projects: Number(r.projects) })) });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/projects/recent-activity — latest 15 project activity entries
+router.get('/recent-activity', requireAuth, async (req, res) => {
+  try {
+    const [rows] = await pool.query(
+      `SELECT pa.id, pa.project_id, p.project_name, pa.activity, pa.created_at
+       FROM ${tbl('project_activity')} pa
+       JOIN ${tbl('projects')} p ON p.id = pa.project_id
+       WHERE p.deleted_at IS NULL
+       ORDER BY pa.created_at DESC LIMIT 15`
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/projects/:id
 router.get('/:id', requireAuth, async (req, res) => {
   try {

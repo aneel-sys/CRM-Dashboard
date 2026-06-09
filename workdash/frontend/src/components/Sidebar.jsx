@@ -2,7 +2,7 @@ import { NavLink } from 'react-router-dom';
 import {
   MdDashboard, MdAccessTime, MdPerson,
   MdFolderOpen, MdSchedule, MdPeople, MdNotifications, MdSettings,
-  MdAssessment, MdBadge,
+  MdAssessment, MdBadge, MdBarChart,
 } from 'react-icons/md';
 import { useSettings } from '../context/SettingsContext';
 import { fmtTimeStr } from '../utils/time';
@@ -21,7 +21,8 @@ const NAV = [
     items: [
       { to: '/reports', icon: MdAssessment, label: 'Reports' },
       { to: '/person', icon: MdPerson, label: 'Per Person' },
-      { to: '/projects', icon: MdFolderOpen, label: 'Projects' },
+      { to: '/project-dashboard', icon: MdBarChart,   label: 'Projects' },
+      { to: '/projects',          icon: MdFolderOpen, label: 'Project List' },
       { to: '/timings', icon: MdSchedule, label: 'Timings' },
     ],
   },
