@@ -136,6 +136,29 @@ export default function Attendance() {
         : '—',
     },
     { key: 'attendance_status', label: 'Status', render: v => <StatusPill status={v} /> },
+    {
+      key: 'leave_type', label: 'Leave',
+      render: (v, row) => {
+        if (!v) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+        const sColor = row.leave_status === 'approved' ? '#1D9E75'
+                     : row.leave_status === 'pending'  ? '#D97706'
+                     : '#E24B4A';
+        const sBg    = row.leave_status === 'approved' ? '#ECFDF5'
+                     : row.leave_status === 'pending'  ? '#FFFBEB'
+                     : '#FEF2F2';
+        return (
+          <div>
+            <p className="text-xs font-semibold" style={{ color: 'var(--text)' }}>{v}</p>
+            {row.leave_reason && (
+              <p className="text-[10px] mt-0.5" style={{ color: 'var(--text-muted)', maxWidth: 160 }}>{row.leave_reason}</p>
+            )}
+            <span style={{ display: 'inline-block', marginTop: 3, fontSize: 10, fontWeight: 600, padding: '1px 7px', borderRadius: 20, color: sColor, background: sBg }}>
+              {row.leave_status}
+            </span>
+          </div>
+        );
+      },
+    },
   ];
 
   const tableData = (data?.records || []).map((r, i) => ({ ...r, idx: i + 1 }));

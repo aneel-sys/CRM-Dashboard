@@ -47,6 +47,30 @@ function buildAttendanceQuery(date, departmentId) {
   return { sql, finalParams };
 }
 
+async function enrichWithLeaveData(rows, date) {
+  try {
+    const [leaveRows] = await pool.query(
+      `SELECT l.user_id,
+              MIN(l.status)       AS leave_status,
+              MIN(lt.type_name)   AS leave_type,
+              MIN(l.reason)       AS leave_reason
+       FROM ${tbl('leaves')} l
+       LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+       WHERE DATE(l.leave_date) = ?
+       GROUP BY l.user_id`,
+      [date]
+    );
+    const leaveMap = {};
+    leaveRows.forEach(r => { leaveMap[r.user_id] = r; });
+    rows.forEach(r => {
+      const lv = leaveMap[r.id];
+      r.leave_type   = lv?.leave_type   || null;
+      r.leave_status = lv?.leave_status || null;
+      r.leave_reason = lv?.leave_reason || null;
+    });
+  } catch { /* leaves enrichment failed — fields remain null */ }
+}
+
 // GET /api/attendance?date=YYYY-MM-DD&department_id=&status=
 router.get('/', requireAuth, async (req, res) => {
   try {
@@ -77,6 +101,8 @@ router.get('/', requireAuth, async (req, res) => {
         r.delay_minutes = 0;
       }
     });
+
+    await enrichWithLeaveData(rows, date);
 
     if (statusFilter && statusFilter !== 'all') {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
@@ -128,6 +154,8 @@ router.get('/export', requireAuth, async (req, res) => {
       } else { r.delay_minutes = 0; }
     });
 
+    await enrichWithLeaveData(rows, date);
+
     if (statusFilter && statusFilter !== 'all') {
       rows = rows.filter(r => r.attendance_status.toLowerCase() === statusFilter.toLowerCase());
     }
@@ -143,7 +171,7 @@ router.get('/export', requireAuth, async (req, res) => {
     const [dy, dm, dd] = date.split('-');
     const dateLabel = `${dd}-${dm}-${dy}`;
 
-    const headers = ['Name', 'Department', 'Designation', 'Date', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status'];
+    const headers = ['Name', 'Department', 'Designation', 'Date', 'Clock In', 'Clock Out', 'Delay (min)', 'Hours Worked', 'Status', 'Leave Type', 'Leave Status', 'Leave Reason'];
     const csvRows = rows.map(r => [
       `"${r.name}"`,
       `"${r.department || ''}"`,
@@ -154,6 +182,9 @@ router.get('/export', requireAuth, async (req, res) => {
       r.delay_minutes > 0 ? r.delay_minutes : 0,
       r.hours_worked ? parseFloat(r.hours_worked).toFixed(1) : '0.0',
       `"${r.attendance_status}"`,
+      `"${r.leave_type || ''}"`,
+      `"${r.leave_status || ''}"`,
+      `"${(r.leave_reason || '').replace(/"/g, '""')}"`,
     ]);
 
     // UTF-8 BOM so Excel opens the file correctly without mojibake
