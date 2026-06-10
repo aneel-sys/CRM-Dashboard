@@ -45,9 +45,9 @@ export default function Attendance() {
 
   const { timeFormat } = useSettings();
   const fmt = dt => fmtTime(dt, timeFormat);
-  const [date, setDate] = useState(today);
+  const [date, setDate] = useState(() => searchParams.get('date') || today);
   const [deptId, setDeptId] = useState('');
-  // Pre-apply status from URL param (e.g. /attendance?status=Late from Overview card clicks)
+  // Pre-apply filters from URL params (e.g. heatmap cell click, KPI card click)
   const [status, setStatus] = useState(() => searchParams.get('status') || '');
   const [departments, setDepartments] = useState([]);
   const [data, setData] = useState(null);

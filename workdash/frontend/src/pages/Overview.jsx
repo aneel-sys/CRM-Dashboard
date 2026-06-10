@@ -587,7 +587,7 @@ export default function Overview() {
           <div
             className="card p-5 fade-up hover:shadow-md transition-shadow duration-200"
             style={{ borderTop: '3px solid #E24B4A', cursor: 'pointer' }}
-            onClick={() => navigate('/attendance')}
+            onClick={() => navigate('/attendance?status=Absent')}
           >
             <div className="flex items-start justify-between mb-3">
               <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
@@ -598,16 +598,14 @@ export default function Overview() {
                 <MdPersonOff size={18} style={{ color: '#E24B4A' }} />
               </div>
             </div>
-            <p className="text-[28px] font-bold leading-none mb-2" style={{ color: 'var(--text)' }}>
-              {(stats.absent ?? 0) + (stats.onLeave ?? 0)}
+            <p className="text-[28px] font-bold leading-none mb-1.5" style={{ color: 'var(--text)' }}>
+              {stats.absent ?? '—'}
             </p>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#E24B4A' }}>{stats.absent ?? '—'}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>absent</span>
-              <span style={{ fontSize: 12, color: 'var(--border)', margin: '0 1px' }}>·</span>
-              <span style={{ fontSize: 13, fontWeight: 700, color: '#8B5CF6' }}>{stats.onLeave ?? '—'}</span>
-              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>on leave</span>
-            </div>
+            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+              <span style={{ color: '#8B5CF6', fontWeight: 700 }}>{stats.onLeave ?? 0}</span> approved leaves
+              {' · '}
+              <span style={{ color: '#E24B4A', fontWeight: 700 }}>{Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))}</span> absent
+            </p>
           </div>
         )}
       </div>
