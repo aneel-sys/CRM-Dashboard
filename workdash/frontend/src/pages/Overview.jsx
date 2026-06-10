@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
-  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer,
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
   PieChart, Pie, Cell, Legend,
   AreaChart, Area,
 } from 'recharts';
@@ -227,6 +227,7 @@ function heatColor(pct) {
 }
 
 function AttendanceHeatmap({ data, total, year, onYearChange }) {
+  const navigate = useNavigate();
   const map = {};
   (data || []).forEach(d => { map[d.date] = d; });
 
@@ -313,12 +314,15 @@ function AttendanceHeatmap({ data, total, year, onYearChange }) {
                       ? `${date}  ${entry.present}/${total} present (${entry.pct}%)`
                       : date || '';
                     return (
-                      <div key={di} title={tip} style={{
-                        width: CELL, height: CELL, borderRadius: 3,
-                        background: color,
-                        border: date && !isFuture ? '1px solid rgba(0,0,0,0.05)' : 'none',
-                        flexShrink: 0,
-                      }} />
+                      <div key={di} title={tip}
+                        onClick={() => date && !isFuture && entry && navigate(`/attendance?date=${date}`)}
+                        style={{
+                          width: CELL, height: CELL, borderRadius: 3,
+                          background: color,
+                          border: date && !isFuture ? '1px solid rgba(0,0,0,0.05)' : 'none',
+                          flexShrink: 0,
+                          cursor: date && !isFuture && entry ? 'pointer' : 'default',
+                        }} />
                     );
                   })}
                 </div>
@@ -340,6 +344,7 @@ function AttendanceHeatmap({ data, total, year, onYearChange }) {
 // ─── Leave Calendar ────────────────────────────────────────────────────────
 
 function LeaveCalendar({ leaves, year, month, onPrev, onNext }) {
+  const navigate = useNavigate();
   const byDate = {};
   (leaves || []).forEach(l => {
     if (!byDate[l.date]) byDate[l.date] = [];
@@ -396,12 +401,15 @@ function LeaveCalendar({ leaves, year, month, onPrev, onNext }) {
               {dl.slice(0, 2).map((l, li) => {
                 const c = l.color || '#1D9E75';
                 return (
-                  <div key={li} title={`${l.name}${l.type_name ? ' — ' + l.type_name : ''}`} style={{
-                    fontSize: 8, fontWeight: 600, padding: '1px 3px', marginBottom: 1,
-                    background: c + '22', color: c, borderLeft: `2px solid ${c}`,
-                    borderRadius: '0 3px 3px 0',
-                    overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                  }}>
+                  <div key={li} title={`${l.name}${l.type_name ? ' — ' + l.type_name : ''}`}
+                    onClick={() => l.user_id && navigate(`/person?id=${l.user_id}`)}
+                    style={{
+                      fontSize: 8, fontWeight: 600, padding: '1px 3px', marginBottom: 1,
+                      background: c + '22', color: c, borderLeft: `2px solid ${c}`,
+                      borderRadius: '0 3px 3px 0',
+                      overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+                      cursor: l.user_id ? 'pointer' : 'default',
+                    }}>
                     {l.name.split(' ')[0]}
                   </div>
                 );
@@ -554,18 +562,54 @@ export default function Overview() {
       <GreetingHeader stats={stats} loading={loading} username={user?.username} />
 
       {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
-      <div className="grid grid-cols-2 xl:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: 'Present Today',    icon: MdPeople,      color: '#1D9E75', value: stats.present ?? '—',                              sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance' },
-          { title: 'Late Today',       icon: MdAccessTime,  color: '#EF9F27', value: stats.late    ?? '—',                              sub: 'arrived after office start',                                       to: '/attendance?status=Late' },
-          { title: 'Absent Today',     icon: MdPersonOff,   color: '#E24B4A', value: stats.absent  ?? '—',                              sub: 'no clock-in recorded',                                             to: '/attendance?status=Absent' },
-          { title: 'On Leave Today',   icon: MdBeachAccess, color: '#8B5CF6', value: stats.onLeave ?? '—',                              sub: 'approved leave',                                                   to: '/attendance' },
-          { title: 'Hours This Month', icon: MdAvTimer,     color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects',                                      to: '/timings' },
+          { title: 'Present Today',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',                                   sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance' },
+          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: 'arrived after office start',                                     to: '/attendance?status=Late' },
+          { title: 'Hours This Month', icon: MdAvTimer,    color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects',                                          to: '/timings' },
         ].map(card => (
           <div key={card.title} onClick={() => navigate(card.to)} style={{ cursor: 'pointer' }}>
             <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} />
           </div>
         ))}
+
+        {/* Away Today — Absent + On Leave combined */}
+        {loading ? (
+          <div className="card p-5 fade-up">
+            <div className="flex items-center justify-between mb-4">
+              <div className="skeleton h-3 w-28 rounded" />
+              <div className="skeleton h-9 w-9 rounded-lg" />
+            </div>
+            <div className="skeleton h-8 w-16 rounded mb-2" />
+            <div className="skeleton h-3 w-32 rounded" />
+          </div>
+        ) : (
+          <div
+            className="card p-5 fade-up hover:shadow-md transition-shadow duration-200"
+            style={{ borderTop: '3px solid #E24B4A', cursor: 'pointer' }}
+            onClick={() => navigate('/attendance')}
+          >
+            <div className="flex items-start justify-between mb-3">
+              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                Away Today
+              </p>
+              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                style={{ background: '#E24B4A18' }}>
+                <MdPersonOff size={18} style={{ color: '#E24B4A' }} />
+              </div>
+            </div>
+            <p className="text-[28px] font-bold leading-none mb-2" style={{ color: 'var(--text)' }}>
+              {(stats.absent ?? 0) + (stats.onLeave ?? 0)}
+            </p>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5, flexWrap: 'wrap' }}>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#E24B4A' }}>{stats.absent ?? '—'}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>absent</span>
+              <span style={{ fontSize: 12, color: 'var(--border)', margin: '0 1px' }}>·</span>
+              <span style={{ fontSize: 13, fontWeight: 700, color: '#8B5CF6' }}>{stats.onLeave ?? '—'}</span>
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>on leave</span>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* ── Currently Working · Department Breakdown · Today's Attendance ── */}
@@ -761,11 +805,13 @@ export default function Overview() {
             ) : (
               <div style={{ height: '100%', minHeight: 200 }}>
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyData} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                  <BarChart data={dailyData} margin={{ top: 20, right: 4, bottom: 0, left: -20 }}>
                     <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
                     <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
                     <Tooltip content={<DailyHoursTooltip />} cursor={{ fill: 'var(--bg)' }} />
-                    <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28} />
+                    <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28}>
+                      <LabelList dataKey="hours" position="top" style={{ fontSize: 9, fill: 'var(--text-muted)', fontWeight: 700 }} formatter={v => v > 0 ? Math.round(v) : ''} />
+                    </Bar>
                   </BarChart>
                 </ResponsiveContainer>
               </div>
@@ -881,9 +927,9 @@ export default function Overview() {
         {/* Top Performers Leaderboard (replaces basic Top Workers) */}
         <div className="card p-5">
           <div className="flex items-center gap-2 mb-4">
-            <MdEmojiEvents size={16} style={{ color: '#EF9F27' }} />
+            <MdAvTimer size={16} style={{ color: '#378ADD' }} />
             <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)', margin: 0 }}>
-              Top Performers · This Month
+              Most Hours Logged · This Month
             </p>
           </div>
           {perfLoading ? (

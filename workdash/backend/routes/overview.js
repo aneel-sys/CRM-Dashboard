@@ -398,7 +398,7 @@ router.get('/leave-calendar', requireAuth, async (req, res) => {
     try {
       const [rows] = await pool.query(
         `SELECT DATE_FORMAT(l.leave_date, '%Y-%m-%d') as date,
-                u.name, lt.type_name, lt.color, l.duration
+                u.id as user_id, u.name, lt.type_name, lt.color, l.duration
          FROM ${tbl('leaves')} l
          JOIN ${tbl('users')} u ON u.id = l.user_id
          LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
