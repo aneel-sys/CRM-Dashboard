@@ -39,15 +39,20 @@ router.get('/today', requireAuth, async (req, res) => {
 
     const absent = total - present;
 
-    // On leave today
+    // On leave today — only people who did NOT clock in. A half-day leaver who
+    // came to work counts as present, not away, so onLeave is always ⊆ absent.
     let on_leave = 0;
     try {
       const [[row]] = await pool.query(
-        `SELECT COUNT(*) as on_leave FROM ${tbl('leaves')}
-         WHERE DATE(leave_date) = ? AND status = 'approved'`,
-        [today]
+        `SELECT COUNT(DISTINCT l.user_id) as on_leave FROM ${tbl('leaves')} l
+         WHERE DATE(l.leave_date) = ? AND l.status = 'approved'
+           AND l.user_id NOT IN (
+             SELECT DISTINCT user_id FROM ${tbl('attendances')}
+             WHERE DATE(clock_in_time) = ?
+           )`,
+        [today, today]
       );
-      on_leave = row.on_leave || 0;
+      on_leave = Math.min(row.on_leave || 0, absent);
     } catch { on_leave = 0; }
 
     // Currently working: clocked in today, no clock-out yet
@@ -272,9 +277,9 @@ router.get('/today', requireAuth, async (req, res) => {
       topWorkers,
       dailyHours,
       attendanceBreakdown: {
-        present: present - on_leave,
+        present,
         onLeave: on_leave,
-        absent,
+        absent: Math.max(0, absent - on_leave),
       },
       currentlyWorking,
       deptBreakdown,

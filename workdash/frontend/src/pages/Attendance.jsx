@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useOutletContext, useSearchParams } from 'react-router-dom';
+import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import {
   MdFilterList, MdDownload, MdPeople, MdAccessTime, MdPersonOff, MdCheckCircle,
 } from 'react-icons/md';
@@ -35,6 +35,56 @@ const trendTooltip = ({ active, payload, label }) => {
   );
 };
 
+function LateOffendersCard({ offenders, loading, days }) {
+  const navigate = useNavigate();
+  const pctColor = pct => pct >= 50 ? '#E24B4A' : pct >= 25 ? '#EF9F27' : 'var(--text-muted)';
+  return (
+    <div className="card overflow-hidden h-full flex flex-col">
+      <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+        <p className="section-title">Frequent Late Arrivals</p>
+        <p className="section-sub">Last {days} days · most late days first</p>
+      </div>
+      <div className="p-4 flex-1 overflow-y-auto">
+        {loading ? (
+          <div className="space-y-3">{[...Array(5)].map((_, i) => <div key={i} className="skeleton h-9 rounded" />)}</div>
+        ) : offenders.length === 0 ? (
+          <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm">No late arrivals in this period 🎉</p>
+          </div>
+        ) : (
+          <div className="space-y-1">
+            {offenders.map((o, i) => (
+              <div
+                key={o.id}
+                className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer transition-colors"
+                style={{ background: 'transparent' }}
+                onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                onClick={() => navigate(`/person?id=${o.id}`)}
+              >
+                <span className="text-[11px] font-bold w-4 text-center shrink-0" style={{ color: 'var(--text-muted)' }}>{i + 1}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{o.name}</p>
+                  <div className="flex items-center gap-2 mt-1">
+                    <div className="flex-1 h-1 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
+                      <div className="h-full rounded-full" style={{ width: `${Math.min(100, o.latePct)}%`, background: pctColor(o.latePct) }} />
+                    </div>
+                    <span className="text-[10px] font-bold shrink-0" style={{ color: pctColor(o.latePct) }}>{o.latePct}%</span>
+                  </div>
+                </div>
+                <div className="text-right shrink-0">
+                  <p className="text-[13px] font-bold" style={{ color: 'var(--text)' }}>{o.lateDays}<span className="text-[10px] font-normal" style={{ color: 'var(--text-muted)' }}>/{o.presentDays}d</span></p>
+                  <p className="text-[10px]" style={{ color: 'var(--text-muted)' }}>last: {o.lastLate}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Attendance() {
   const { refreshKey } = useOutletContext();
   const [searchParams] = useSearchParams();
@@ -54,6 +104,8 @@ export default function Attendance() {
   const [loading, setLoading] = useState(true);
   const [trend, setTrend] = useState([]);
   const [trendLoading, setTrendLoading] = useState(true);
+  const [offenders, setOffenders] = useState([]);
+  const [offendersLoading, setOffendersLoading] = useState(true);
 
   useEffect(() => {
     api.get('/attendance/departments')
@@ -67,6 +119,11 @@ export default function Attendance() {
       .then(res => setTrend(res.data.trend || []))
       .catch(() => {})
       .finally(() => setTrendLoading(false));
+    setOffendersLoading(true);
+    api.get('/attendance/late-offenders?days=30')
+      .then(res => setOffenders(res.data.offenders || []))
+      .catch(() => {})
+      .finally(() => setOffendersLoading(false));
   }, [refreshKey]);
 
   const fetchData = () => {
@@ -122,7 +179,12 @@ export default function Attendance() {
         </span>
       ),
     },
-    { key: 'clock_out_time', label: 'Clock Out', render: v => fmt(v) },
+    {
+      key: 'clock_out_time', label: 'Clock Out',
+      render: (v, row) => row.missing_clock_out
+        ? <span className="pill pill-red" title="Employee did not clock out this day">Missing</span>
+        : fmt(v),
+    },
     {
       key: 'delay_minutes', label: 'Delay',
       render: v => v > 0
@@ -203,34 +265,39 @@ export default function Attendance() {
         <StatCard title="Total Staff" value={stats.total}   icon={MdPeople}      color="#378ADD" loading={loading} />
       </div>
 
-      {/* 30-Day Trend Chart */}
-      <div className="card overflow-hidden">
-        <div className="flex items-center justify-between px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
-          <div>
-            <p className="section-title">30-Day Attendance Trend</p>
-            <p className="section-sub">Last 14 days shown · On Time · Late · Absent</p>
+      {/* 30-Day Trend Chart + Frequent Late Arrivals */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="card overflow-hidden h-full flex flex-col lg:col-span-3">
+          <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+            <div>
+              <p className="section-title">30-Day Attendance Trend</p>
+              <p className="section-sub">Last 14 working days · weekends &amp; holidays excluded</p>
+            </div>
+          </div>
+          <div className="px-5 py-4 flex-1 flex flex-col justify-center">
+            {trendLoading ? (
+              <div className="skeleton h-36 rounded" />
+            ) : chartData.length === 0 ? (
+              <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No attendance history yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={220} minHeight={220}>
+                <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="30%">
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip content={trendTooltip} cursor={{ fill: 'var(--bg)' }} />
+                  <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
+                  <Bar dataKey="onTime"  name="On Time" stackId="a" fill="#1D9E75" radius={[0, 0, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="late"    name="Late"    stackId="a" fill="#EF9F27" radius={[0, 0, 0, 0]} maxBarSize={32} />
+                  <Bar dataKey="absent"  name="Absent"  stackId="a" fill="#E24B4A" radius={[4, 4, 0, 0]} maxBarSize={32} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
           </div>
         </div>
-        <div className="px-5 py-4">
-          {trendLoading ? (
-            <div className="skeleton h-36 rounded" />
-          ) : chartData.length === 0 ? (
-            <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
-              <p className="text-sm">No attendance history yet</p>
-            </div>
-          ) : (
-            <ResponsiveContainer width="100%" height={150}>
-              <BarChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: -16 }} barCategoryGap="30%">
-                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                <Tooltip content={trendTooltip} cursor={{ fill: 'var(--bg)' }} />
-                <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, paddingTop: 8 }} />
-                <Bar dataKey="onTime"  name="On Time" stackId="a" fill="#1D9E75" radius={[0, 0, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="late"    name="Late"    stackId="a" fill="#EF9F27" radius={[0, 0, 0, 0]} maxBarSize={32} />
-                <Bar dataKey="absent"  name="Absent"  stackId="a" fill="#E24B4A" radius={[4, 4, 0, 0]} maxBarSize={32} />
-              </BarChart>
-            </ResponsiveContainer>
-          )}
+        <div className="lg:col-span-2 h-full">
+          <LateOffendersCard offenders={offenders} loading={offendersLoading} days={30} />
         </div>
       </div>
 

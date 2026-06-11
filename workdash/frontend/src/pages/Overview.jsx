@@ -825,7 +825,7 @@ export default function Overview() {
         <div className="lg:col-span-3 h-full">
           <SectionCard
             title="30-Day Attendance Trend"
-            subtitle="On Time · Late · Absent per day"
+            subtitle="Working days only · weekends & holidays excluded"
             action={
               <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
                 <MdTrendingUp size={14} style={{ color: 'var(--primary)' }} />

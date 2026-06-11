@@ -47,6 +47,19 @@ function buildAttendanceQuery(date, departmentId) {
   return { sql, finalParams };
 }
 
+// For past dates a missing clock-out would make hours run until NOW() —
+// null the hours and flag the row instead of showing 20h+ shifts.
+function flagMissingClockOuts(rows, date) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  if (date >= todayStr) return;
+  rows.forEach(r => {
+    if (r.clock_in_time && !r.clock_out_time) {
+      r.hours_worked = null;
+      r.missing_clock_out = true;
+    }
+  });
+}
+
 async function enrichWithLeaveData(rows, date) {
   try {
     const [leaveRows] = await pool.query(
@@ -102,6 +115,7 @@ router.get('/', requireAuth, async (req, res) => {
       }
     });
 
+    flagMissingClockOuts(rows, date);
     await enrichWithLeaveData(rows, date);
 
     if (statusFilter && statusFilter !== 'all') {
@@ -154,6 +168,7 @@ router.get('/export', requireAuth, async (req, res) => {
       } else { r.delay_minutes = 0; }
     });
 
+    flagMissingClockOuts(rows, date);
     await enrichWithLeaveData(rows, date);
 
     if (statusFilter && statusFilter !== 'all') {
@@ -178,7 +193,7 @@ router.get('/export', requireAuth, async (req, res) => {
       `"${r.designation || ''}"`,
       `"${dateLabel}"`,
       `"${fmtTimeIST(r.clock_in_time)}"`,
-      `"${fmtTimeIST(r.clock_out_time)}"`,
+      `"${r.missing_clock_out ? 'MISSING' : fmtTimeIST(r.clock_out_time)}"`,
       r.delay_minutes > 0 ? r.delay_minutes : 0,
       r.hours_worked ? parseFloat(r.hours_worked).toFixed(1) : '0.0',
       `"${r.attendance_status}"`,
@@ -202,14 +217,28 @@ router.get('/export', requireAuth, async (req, res) => {
 router.get('/trend', requireAuth, async (req, res) => {
   try {
     const days = Math.min(parseInt(req.query.days) || 30, 60);
+    const settings = await getOfficeSettings();
+    // Worksuite stores open days as 1=Mon … 7=Sun; JS getUTCDay() is 0=Sun
+    const openDays = (settings.officeOpenDays || [1, 2, 3, 4, 5])
+      .map(d => Number(d) === 7 ? 0 : Number(d));
 
     const [[{ total }]] = await pool.query(
       `SELECT COUNT(*) as total FROM ${tbl('users')} WHERE status = 'active'`
     );
 
+    let holidaySet = new Set();
+    try {
+      const [hrows] = await pool.query(
+        `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+         WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY) AND date <= CURDATE()`,
+        [days - 1]
+      );
+      holidaySet = new Set(hrows.map(r => r.d));
+    } catch { /* no holidays table — skip */ }
+
     const [rows] = await pool.query(
       `SELECT
-         DATE(clock_in_time) as date,
+         DATE_FORMAT(DATE(clock_in_time), '%Y-%m-%d') as date,
          COUNT(DISTINCT user_id) as present,
          COUNT(DISTINCT CASE WHEN late = 'yes' THEN user_id END) as late
        FROM ${tbl('attendances')}
@@ -220,18 +249,57 @@ router.get('/trend', requireAuth, async (req, res) => {
       [days - 1]
     );
 
-    const trend = rows.map(r => ({
-      date: r.date,
-      label: new Date(r.date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-      present: Number(r.present),
-      late: Number(r.late),
-      onTime: Math.max(0, Number(r.present) - Number(r.late)),
-      absent: Math.max(0, total - Number(r.present)),
-    }));
+    // Office working days only — weekends/holidays would show everyone absent
+    const trend = rows
+      .filter(r => openDays.includes(new Date(`${r.date}T00:00:00Z`).getUTCDay()) && !holidaySet.has(r.date))
+      .map(r => ({
+        date: r.date,
+        label: new Date(`${r.date}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }),
+        present: Number(r.present),
+        late: Number(r.late),
+        onTime: Math.max(0, Number(r.present) - Number(r.late)),
+        absent: Math.max(0, total - Number(r.present)),
+      }));
 
     res.json({ success: true, trend, total });
   } catch (err) {
     console.error('Attendance trend error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
+// GET /api/attendance/late-offenders?days=30 — most frequently late employees
+router.get('/late-offenders', requireAuth, async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days) || 30, 90);
+    const [rows] = await pool.query(
+      `SELECT u.id, u.name, d.team_name as department,
+              COUNT(DISTINCT CASE WHEN a.late = 'yes' THEN DATE(a.clock_in_time) END) as late_days,
+              COUNT(DISTINCT DATE(a.clock_in_time)) as present_days,
+              DATE_FORMAT(MAX(CASE WHEN a.late = 'yes' THEN DATE(a.clock_in_time) END), '%d %b') as last_late
+       FROM ${tbl('attendances')} a
+       JOIN ${tbl('users')} u ON u.id = a.user_id AND u.status = 'active'
+       LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+       LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+       WHERE DATE(a.clock_in_time) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY u.id, u.name, d.team_name
+       HAVING late_days > 0
+       ORDER BY late_days DESC, present_days ASC
+       LIMIT 10`,
+      [days - 1]
+    );
+    const offenders = rows.map(r => ({
+      id: r.id,
+      name: r.name,
+      department: r.department,
+      lateDays: Number(r.late_days),
+      presentDays: Number(r.present_days),
+      latePct: r.present_days > 0 ? Math.round((r.late_days / r.present_days) * 100) : 0,
+      lastLate: r.last_late,
+    }));
+    res.json({ success: true, days, offenders });
+  } catch (err) {
+    console.error('Late offenders error:', err.message);
     res.status(500).json({ success: false, message: err.message });
   }
 });

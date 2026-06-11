@@ -2,6 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
 const { requireAuth } = require('../middleware/auth');
+const { getOfficeSettings } = require('../db/officeSettings');
+
+// Effective clock-out: real clock-out, NOW() for today's open shifts, and a
+// full-workday cap for past days where the employee forgot to clock out.
+async function effectiveClockOut(col = 'clock_out_time', inCol = 'clock_in_time') {
+  const { workHoursPerDay } = await getOfficeSettings();
+  const capMins = Math.round((workHoursPerDay || 9) * 60);
+  return `CASE
+    WHEN ${col} IS NOT NULL THEN ${col}
+    WHEN DATE(${inCol}) = UTC_DATE() THEN NOW()
+    ELSE DATE_ADD(${inCol}, INTERVAL ${capMins} MINUTE)
+  END`;
+}
 
 // GET /api/employees
 router.get('/', requireAuth, async (req, res) => {
@@ -81,7 +94,8 @@ router.get('/:id/report', requireAuth, async (req, res) => {
               TIME_FORMAT(DATE_ADD(clock_in_time,  INTERVAL 19800 SECOND), '%H:%i') as clock_in,
               TIME_FORMAT(DATE_ADD(clock_out_time, INTERVAL 19800 SECOND), '%H:%i') as clock_out,
               CASE WHEN late = 'yes' THEN 1 ELSE 0 END as is_late,
-              ROUND(TIMESTAMPDIFF(MINUTE, clock_in_time, COALESCE(clock_out_time, NOW())) / 60, 2) as hours
+              ROUND(TIMESTAMPDIFF(MINUTE, clock_in_time, ${await effectiveClockOut()}) / 60, 2) as hours,
+              (clock_out_time IS NULL AND DATE(clock_in_time) <> UTC_DATE()) as missing_clock_out
        FROM ${tbl('attendances')}
        WHERE user_id = ?
          AND MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?

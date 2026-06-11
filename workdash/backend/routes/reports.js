@@ -66,7 +66,10 @@ async function fetchAttendance(q) {
     SELECT u.id, u.name, d.team_name as department, ds.name as designation,
            DATE_FORMAT(a.clock_in_time, '%Y-%m-%d') as date,
            a.clock_in_time, a.clock_out_time, a.late,
-           ROUND(TIMESTAMPDIFF(MINUTE, a.clock_in_time, COALESCE(a.clock_out_time, NOW())) / 60, 2) as hours_worked,
+           ROUND(TIMESTAMPDIFF(MINUTE, a.clock_in_time,
+             CASE WHEN a.clock_out_time IS NOT NULL THEN a.clock_out_time
+                  WHEN DATE(a.clock_in_time) = UTC_DATE() THEN NOW()
+                  ELSE NULL END) / 60, 2) as hours_worked,
            ess.shift_start_time
     FROM ${tbl('attendances')} a
     JOIN ${tbl('users')} u ON u.id = a.user_id

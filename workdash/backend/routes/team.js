@@ -2,6 +2,19 @@ const express = require('express');
 const router = express.Router();
 const { pool, tbl } = require('../db/connection');
 const { requireAuth } = require('../middleware/auth');
+const { getOfficeSettings } = require('../db/officeSettings');
+
+// Effective clock-out: real clock-out, NOW() for today's open shifts, and a
+// full-workday cap for past days where the employee forgot to clock out.
+async function effectiveClockOut(col = 'clock_out_time', inCol = 'clock_in_time') {
+  const { workHoursPerDay } = await getOfficeSettings();
+  const capMins = Math.round((workHoursPerDay || 9) * 60);
+  return `CASE
+    WHEN ${col} IS NOT NULL THEN ${col}
+    WHEN DATE(${inCol}) = UTC_DATE() THEN NOW()
+    ELSE DATE_ADD(${inCol}, INTERVAL ${capMins} MINUTE)
+  END`;
+}
 
 // GET /api/team?month=5&year=2025&department_id=&search=
 router.get('/', requireAuth, async (req, res) => {
@@ -59,7 +72,7 @@ router.get('/', requireAuth, async (req, res) => {
       const [rows] = await pool.query(
         `SELECT user_id,
                 ROUND(SUM(TIMESTAMPDIFF(MINUTE, clock_in_time,
-                  COALESCE(clock_out_time, NOW())) / 60), 1) as hours
+                  ${await effectiveClockOut()}) / 60), 1) as hours
          FROM ${tbl('attendances')}
          WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
            AND clock_in_time IS NOT NULL
@@ -164,7 +177,7 @@ router.get('/export', requireAuth, async (req, res) => {
       const [rows] = await pool.query(
         `SELECT user_id,
                 ROUND(SUM(TIMESTAMPDIFF(MINUTE, clock_in_time,
-                  COALESCE(clock_out_time, NOW())) / 60), 1) as hours
+                  ${await effectiveClockOut()}) / 60), 1) as hours
          FROM ${tbl('attendances')}
          WHERE MONTH(clock_in_time) = ? AND YEAR(clock_in_time) = ?
            AND clock_in_time IS NOT NULL
