@@ -54,7 +54,9 @@ function buildResponse(s) {
     success: true,
     appName: s.appName || 'CRM Dashboard',
     appSubtitle: s.appSubtitle || 'Analytics Dashboard',
-    logoUrl: s.logoFile ? `/uploads/${s.logoFile}` : null,
+    // ?v= busts the browser cache — the filename is always logo.<ext>, so
+    // without it a replaced logo keeps showing the old cached image
+    logoUrl: s.logoFile ? `/uploads/${s.logoFile}?v=${s.logoVersion || 1}` : null,
     timeFormat: s.timeFormat || '24h',
   };
 }
@@ -102,8 +104,9 @@ router.post('/logo', requireAuth, (req, res) => {
       try { fs.unlinkSync(path.join(UPLOADS_DIR, s.logoFile)); } catch {}
     }
     s.logoFile = req.file.filename;
+    s.logoVersion = Date.now();
     writeSettings(s);
-    res.json({ success: true, logoUrl: `/uploads/${req.file.filename}` });
+    res.json({ success: true, logoUrl: `/uploads/${req.file.filename}?v=${s.logoVersion}` });
   });
 });
 
