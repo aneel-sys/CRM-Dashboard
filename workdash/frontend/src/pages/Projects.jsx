@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   MdArrowBack, MdPeople, MdSchedule, MdFolderOpen, MdAttachMoney,
 } from 'react-icons/md';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Treemap } from 'recharts';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
@@ -523,9 +523,88 @@ function ProjectDetail({ project, onBack }) {
   );
 }
 
+const TREE_COLORS = ['#1D9E75', '#378ADD', '#EF9F27', '#7C3AED', '#EC4899', '#0891B2', '#E24B4A', '#65A30D', '#D97706', '#6366F1'];
+
+function TreeCell({ x, y, width, height, index, name, hours }) {
+  if (width < 4 || height < 4) return null;
+  const showLabel = width > 70 && height > 34;
+  const color = TREE_COLORS[index % TREE_COLORS.length];
+  return (
+    <g>
+      <rect x={x} y={y} width={width} height={height} rx={4}
+        style={{ fill: color, stroke: 'var(--card-bg, #fff)', strokeWidth: 3, opacity: 0.88 }} />
+      {showLabel && (
+        <>
+          <text x={x + 8} y={y + 18} style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>
+            {name.length > width / 7 ? name.slice(0, Math.floor(width / 7)) + '…' : name}
+          </text>
+          <text x={x + 8} y={y + 32} style={{ fill: '#fff', fontSize: 10, opacity: 0.85, pointerEvents: 'none' }}>
+            {hours}h
+          </text>
+        </>
+      )}
+    </g>
+  );
+}
+
+function HoursTreemapCard() {
+  const [period, setPeriod] = useState('month');
+  const [data, setData] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    setLoading(true);
+    api.get(`/projects/hours-chart?period=${period}`)
+      .then(res => setData((res.data.data || []).filter(d => d.hours > 0).slice(0, 14)))
+      .catch(() => setData([]))
+      .finally(() => setLoading(false));
+  }, [period]);
+
+  const total = data.reduce((s, d) => s + d.hours, 0);
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <p className="section-title">Where Time Goes · Hours by Project</p>
+          <p className="section-sub">{total > 0 ? `${total.toFixed(0)}h logged ${period === 'month' ? 'this month' : period === 'week' ? 'last 7 days' : 'all time'}` : 'Logged project hours'}</p>
+        </div>
+        <div className="flex gap-1">
+          {[['week', 'Week'], ['month', 'Month'], ['all', 'All Time']].map(([val, label]) => (
+            <button key={val} onClick={() => setPeriod(val)}
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+              style={period === val
+                ? { background: 'var(--primary)', color: '#fff' }
+                : { background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="p-4">
+        {loading ? (
+          <div className="skeleton h-56 rounded" />
+        ) : data.length === 0 ? (
+          <div className="text-center py-14" style={{ color: 'var(--text-muted)' }}>
+            <p className="text-sm">No project hours logged in this period</p>
+          </div>
+        ) : (
+          <ResponsiveContainer width="100%" height={240}>
+            <Treemap data={data} dataKey="hours" nameKey="name" isAnimationActive={false}
+              content={<TreeCell />}>
+              <Tooltip formatter={v => [`${v}h`, 'Hours']} />
+            </Treemap>
+          </ResponsiveContainer>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Projects() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
+  const [searchParams] = useSearchParams();
   const [projects, setProjects] = useState([]);
   const [allProjects, setAllProjects] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -541,7 +620,14 @@ export default function Projects() {
       api.get('/projects'),
     ]).then(([sRes, pRes]) => {
       setStatuses(sRes.data.statuses || []);
-      setAllProjects(pRes.data.projects || []);
+      const all = pRes.data.projects || [];
+      setAllProjects(all);
+      // Deep link: /projects?id=X opens that project's detail view
+      const urlId = searchParams.get('id');
+      if (urlId) {
+        const proj = all.find(p => String(p.id) === urlId);
+        if (proj) setSelected(proj);
+      }
     }).catch(() => {});
   }, []);
 
@@ -610,6 +696,9 @@ export default function Projects() {
           )}
         </div>
       </div>
+
+      {/* Org-wide hours by project treemap */}
+      <HoursTreemapCard />
 
       {/* Grid */}
       {loading ? (

@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Topbar from './Topbar';
+import CommandPalette from './CommandPalette';
 import { useSettings } from '../context/SettingsContext';
 
 const PAGE_TITLES = {
@@ -28,6 +29,19 @@ export default function Layout() {
   const [collapsed, setCollapsed] = useState(false);
   const [lastRefresh, setLastRefresh] = useState(Date.now());
   const [refreshKey, setRefreshKey] = useState(0);
+  const [paletteOpen, setPaletteOpen] = useState(false);
+
+  // Global Ctrl+K / Cmd+K opens the search palette
+  useEffect(() => {
+    const handler = e => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setPaletteOpen(o => !o);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   const doRefresh = useCallback(() => {
     setLastRefresh(Date.now());
@@ -63,7 +77,10 @@ export default function Layout() {
           onToggleSidebar={() => setCollapsed(c => !c)}
           lastRefresh={lastRefresh}
           onRefresh={doRefresh}
+          onOpenSearch={() => setPaletteOpen(true)}
         />
+
+        <CommandPalette open={paletteOpen} onClose={() => setPaletteOpen(false)} />
 
         {/* Scrollable content area, below topbar */}
         <main style={{

@@ -55,6 +55,43 @@ router.get('/today', requireAuth, async (req, res) => {
       on_leave = Math.min(row.on_leave || 0, absent);
     } catch { on_leave = 0; }
 
+    // Previous working day stats — for ▲/▼ deltas on the KPI cards
+    let prev = null;
+    try {
+      const { officeOpenDays } = await getOfficeSettings();
+      const openDays = (officeOpenDays || [1, 2, 3, 4, 5]).map(d => Number(d) === 7 ? 0 : Number(d));
+      let holidaySet = new Set();
+      try {
+        const [hrows] = await pool.query(
+          `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+           WHERE date >= DATE_SUB(CURDATE(), INTERVAL 14 DAY) AND date < CURDATE()`
+        );
+        holidaySet = new Set(hrows.map(r => r.d));
+      } catch {}
+      // Walk back up to 14 days to find the previous working day
+      let prevDate = null;
+      const d = new Date(`${today}T00:00:00Z`);
+      for (let i = 0; i < 14; i++) {
+        d.setUTCDate(d.getUTCDate() - 1);
+        const ds = d.toISOString().slice(0, 10);
+        if (openDays.includes(d.getUTCDay()) && !holidaySet.has(ds)) { prevDate = ds; break; }
+      }
+      if (prevDate) {
+        const [[p]] = await pool.query(
+          `SELECT COUNT(DISTINCT user_id) as present,
+                  COUNT(DISTINCT CASE WHEN late = 'yes' THEN user_id END) as late
+           FROM ${tbl('attendances')} WHERE DATE(clock_in_time) = ?`,
+          [prevDate]
+        );
+        prev = {
+          date: prevDate,
+          present: Number(p.present),
+          late: Number(p.late),
+          absent: Math.max(0, total - Number(p.present)),
+        };
+      }
+    } catch { prev = null; }
+
     // Currently working: clocked in today, no clock-out yet
     let currentlyWorking = { count: 0, list: [] };
     try {
@@ -85,6 +122,7 @@ router.get('/today', requireAuth, async (req, res) => {
     try {
       const [rows] = await pool.query(
         `SELECT
+           d.id AS dept_id,
            d.team_name AS department,
            COUNT(DISTINCT u.id) AS total,
            COUNT(DISTINCT CASE WHEN a.clock_in_time IS NOT NULL THEN u.id END) AS present,
@@ -101,6 +139,7 @@ router.get('/today', requireAuth, async (req, res) => {
         [today]
       );
       deptBreakdown = rows.map(r => ({
+        id: r.dept_id,
         department: r.department,
         total: r.total,
         present: r.present,
@@ -272,6 +311,7 @@ router.get('/today', requireAuth, async (req, res) => {
         onLeave: on_leave,
         monthHours: monthHours.toFixed(1),
         activeProjects,
+        prev,
       },
       lateArrivals,
       topWorkers,

@@ -37,6 +37,82 @@ router.get('/', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/employees/:id/year-attendance?year=2026
+// Per-day status for a GitHub-style year heatmap:
+// present | late | leave | absent | off (weekend/holiday) — future days omitted
+router.get('/:id/year-attendance', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const year = parseInt(req.query.year) || new Date().getFullYear();
+    const { officeOpenDays } = await getOfficeSettings();
+    const openDays = (officeOpenDays || [1, 2, 3, 4, 5]).map(d => Number(d) === 7 ? 0 : Number(d));
+
+    const [attRows] = await pool.query(
+      `SELECT DATE_FORMAT(DATE(DATE_ADD(clock_in_time, INTERVAL 19800 SECOND)), '%Y-%m-%d') as d,
+              MAX(late = 'yes') as was_late
+       FROM ${tbl('attendances')}
+       WHERE user_id = ? AND YEAR(DATE_ADD(clock_in_time, INTERVAL 19800 SECOND)) = ?
+       GROUP BY d`,
+      [id, year]
+    );
+    const attMap = {};
+    attRows.forEach(r => { attMap[r.d] = r.was_late ? 'late' : 'present'; });
+
+    let leaveSet = new Set();
+    try {
+      const [lrows] = await pool.query(
+        `SELECT DATE_FORMAT(leave_date, '%Y-%m-%d') as d FROM ${tbl('leaves')}
+         WHERE user_id = ? AND status = 'approved' AND YEAR(leave_date) = ?`,
+        [id, year]
+      );
+      leaveSet = new Set(lrows.map(r => r.d));
+    } catch {}
+
+    let holidaySet = new Set();
+    try {
+      const [hrows] = await pool.query(
+        `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')} WHERE YEAR(date) = ?`,
+        [year]
+      );
+      holidaySet = new Set(hrows.map(r => r.d));
+    } catch {}
+
+    // Employee joining date — days before it should not count as absent
+    let joined = null;
+    try {
+      const [[u]] = await pool.query(
+        `SELECT DATE_FORMAT(COALESCE(ed.joining_date, u.created_at), '%Y-%m-%d') as j
+         FROM ${tbl('users')} u
+         LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+         WHERE u.id = ?`,
+        [id]
+      );
+      joined = u?.j || null;
+    } catch {}
+
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const days = [];
+    const d = new Date(Date.UTC(year, 0, 1));
+    while (d.getUTCFullYear() === year) {
+      const ds = d.toISOString().slice(0, 10);
+      if (ds > todayStr) break;
+      let status;
+      if (attMap[ds])                                      status = attMap[ds];
+      else if (leaveSet.has(ds))                           status = 'leave';
+      else if (!openDays.includes(d.getUTCDay()) || holidaySet.has(ds)) status = 'off';
+      else if (joined && ds < joined)                      status = 'off';
+      else                                                 status = 'absent';
+      days.push({ date: ds, status });
+      d.setUTCDate(d.getUTCDate() + 1);
+    }
+
+    res.json({ success: true, year, days });
+  } catch (err) {
+    console.error('Year attendance error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/employees/:id/report?month=5&year=2025
 router.get('/:id/report', requireAuth, async (req, res) => {
   try {

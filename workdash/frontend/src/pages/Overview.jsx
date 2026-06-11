@@ -126,11 +126,16 @@ function SectionCard({ title, subtitle, children, action, className = '' }) {
   );
 }
 
-function DeptRow({ dept }) {
+function DeptRow({ dept, onClick }) {
   const pct   = dept.total > 0 ? Math.round((dept.present / dept.total) * 100) : 0;
   const color = pct >= 80 ? 'var(--primary)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
   return (
-    <tr>
+    <tr
+      onClick={onClick}
+      style={{ cursor: onClick ? 'pointer' : 'default' }}
+      onMouseEnter={e => { if (onClick) e.currentTarget.style.background = 'var(--bg)'; }}
+      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
+    >
       <td style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, padding: '8px 0' }}>
         {dept.department}
       </td>
@@ -564,12 +569,14 @@ export default function Overview() {
       {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: 'Present Today',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',                                   sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance' },
-          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: 'arrived after office start',                                     to: '/attendance?status=Late' },
+          { title: 'Present Today',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',                                   sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance',
+            delta: stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
+          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: 'arrived after office start',                                     to: '/attendance?status=Late',
+            delta: stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
           { title: 'Hours This Month', icon: MdAvTimer,    color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects',                                          to: '/timings' },
         ].map(card => (
           <div key={card.title} onClick={() => navigate(card.to)} style={{ cursor: 'pointer' }}>
-            <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} />
+            <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} delta={card.delta} />
           </div>
         ))}
 
@@ -598,9 +605,21 @@ export default function Overview() {
                 <MdPersonOff size={18} style={{ color: '#E24B4A' }} />
               </div>
             </div>
-            <p className="text-[28px] font-bold leading-none mb-1.5" style={{ color: 'var(--text)' }}>
-              {stats.absent ?? '—'}
-            </p>
+            <div className="flex items-baseline gap-2 mb-1.5">
+              <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
+                {stats.absent ?? '—'}
+              </p>
+              {stats.prev && (() => {
+                const diff = (stats.absent || 0) - stats.prev.absent;
+                const color = diff === 0 ? 'var(--text-muted)' : diff > 0 ? '#E24B4A' : '#1D9E75';
+                return (
+                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                    style={{ background: diff === 0 ? 'var(--bg)' : `${color}14`, color }}>
+                    {diff === 0 ? '= same' : `${diff > 0 ? '▲ +' : '▼ '}${diff}`}
+                  </span>
+                );
+              })()}
+            </div>
             <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
               <span style={{ color: '#8B5CF6', fontWeight: 700 }}>{stats.onLeave ?? 0}</span> approved leaves
               {' · '}
@@ -640,7 +659,10 @@ export default function Overview() {
                   ) : (
                     currentlyWorking.list.map(emp => (
                       <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                        style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+                        style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                        onClick={() => navigate(`/person?id=${emp.id}`)}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
                         <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
                         <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
                         <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
@@ -681,7 +703,13 @@ export default function Overview() {
                   </tr>
                 </thead>
                 <tbody>
-                  {deptBreakdown.map(dept => <DeptRow key={dept.department} dept={dept} />)}
+                  {deptBreakdown.map(dept => (
+                    <DeptRow
+                      key={dept.department}
+                      dept={dept}
+                      onClick={dept.id ? () => navigate(`/attendance?dept=${dept.id}`) : undefined}
+                    />
+                  ))}
                 </tbody>
               </table>
             )}
@@ -700,7 +728,14 @@ export default function Overview() {
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 220 }}>
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}>
+                    <Pie
+                      data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}
+                      style={{ cursor: 'pointer' }}
+                      onClick={d => {
+                        const dest = { Present: '/attendance', 'On Leave': '/attendance?status=Absent', Absent: '/attendance?status=Absent' }[d?.name];
+                        if (dest) navigate(dest);
+                      }}
+                    >
                       {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
                     </Pie>
                     <Tooltip formatter={(v, n) => [v, n]} />
@@ -979,19 +1014,25 @@ export default function Overview() {
             </div>
           ) : (
             <div className="space-y-2">
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--danger-light)', border: '1px solid #FECACA' }}>
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--danger-light)', border: '1px solid #FECACA', cursor: 'pointer' }}
+                onClick={() => navigate('/attendance?status=Absent')}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--danger)' }} />
-                <span className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>{stats.absent || 0} absent today</span>
+                <span className="text-sm font-semibold flex-1" style={{ color: 'var(--danger)' }}>{stats.absent || 0} absent today</span>
+                <span className="text-xs" style={{ color: 'var(--danger)', opacity: 0.6 }}>→</span>
               </div>
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A' }}>
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A', cursor: 'pointer' }}
+                onClick={() => navigate('/attendance?status=Late')}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--warning)' }} />
-                <span className="text-sm font-semibold" style={{ color: '#D97706' }}>{stats.late || 0} late arrivals</span>
+                <span className="text-sm font-semibold flex-1" style={{ color: '#D97706' }}>{stats.late || 0} late arrivals</span>
+                <span className="text-xs" style={{ color: '#D97706', opacity: 0.6 }}>→</span>
               </div>
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--primary-light)', border: '1px solid #A7F3D0' }}>
+              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--primary-light)', border: '1px solid #A7F3D0', cursor: 'pointer' }}
+                onClick={() => navigate('/attendance?status=On Time')}>
                 <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--primary)' }} />
-                <span className="text-sm font-semibold" style={{ color: 'var(--primary-dark)' }}>
+                <span className="text-sm font-semibold flex-1" style={{ color: 'var(--primary-dark)' }}>
                   {(stats.present || 0) - (stats.late || 0)} on time today
                 </span>
+                <span className="text-xs" style={{ color: 'var(--primary-dark)', opacity: 0.6 }}>→</span>
               </div>
             </div>
           )}

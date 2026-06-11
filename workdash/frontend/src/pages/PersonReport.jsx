@@ -162,6 +162,97 @@ function KpiBox({ label, value, color }) {
   );
 }
 
+const YEAR_HEAT = {
+  present: { color: '#1D9E75', label: 'Present'  },
+  late:    { color: '#EF9F27', label: 'Late'     },
+  absent:  { color: '#E24B4A', label: 'Absent'   },
+  leave:   { color: '#8B5CF6', label: 'On Leave' },
+  off:     { color: 'var(--border)', label: 'Weekend / Holiday' },
+};
+
+function YearAttendanceHeatmap({ days, year, loading }) {
+  // GitHub-style grid: columns = weeks, rows = Mon…Sun
+  const CELL = 11, GAP = 3;
+  const jan1Offset = (new Date(Date.UTC(year, 0, 1)).getUTCDay() + 6) % 7;
+  const cells = [];
+  const monthLabels = [];
+  let lastMonth = -1;
+  days.forEach(d => {
+    const dt = new Date(`${d.date}T00:00:00Z`);
+    const row = (dt.getUTCDay() + 6) % 7; // Mon=0 … Sun=6
+    const dayIdx = Math.round((dt - Date.UTC(year, 0, 1)) / 86400000);
+    const col = Math.floor((dayIdx + jan1Offset) / 7);
+    if (dt.getUTCMonth() !== lastMonth) {
+      lastMonth = dt.getUTCMonth();
+      monthLabels.push({ col, label: MONTHS[lastMonth] });
+    }
+    cells.push({ ...d, row, col });
+  });
+  const totalCols = cells.length ? Math.max(...cells.map(c => c.col)) + 1 : 0;
+  const counts = days.reduce((acc, d) => { acc[d.status] = (acc[d.status] || 0) + 1; return acc; }, {});
+
+  return (
+    <div className="card overflow-hidden">
+      <div className="flex items-center justify-between px-5 py-4 flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
+        <div>
+          <p className="section-title">Attendance Map · {year}</p>
+          <p className="section-sub">
+            {counts.present || 0} present · {counts.late || 0} late · {counts.absent || 0} absent · {counts.leave || 0} on leave
+          </p>
+        </div>
+        <div className="flex items-center gap-3 flex-wrap">
+          {Object.entries(YEAR_HEAT).map(([k, v]) => (
+            <span key={k} className="flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--text-muted)' }}>
+              <span style={{ width: 9, height: 9, borderRadius: 2, background: v.color, display: 'inline-block' }} />
+              {v.label}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="p-5" style={{ overflowX: 'auto' }}>
+        {loading ? (
+          <div className="skeleton h-24 rounded" />
+        ) : cells.length === 0 ? (
+          <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No attendance data for {year}</p>
+        ) : (
+          <div style={{ minWidth: totalCols * (CELL + GAP) + 30 }}>
+            <div style={{ position: 'relative', height: 14, marginLeft: 30 }}>
+              {monthLabels.map(m => (
+                <span key={m.label} style={{ position: 'absolute', left: m.col * (CELL + GAP), fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>
+                  {m.label}
+                </span>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 6 }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: GAP, width: 24 }}>
+                {['Mon', '', 'Wed', '', 'Fri', '', ''].map((l, i) => (
+                  <span key={i} style={{ fontSize: 9, color: 'var(--text-muted)', height: CELL, lineHeight: `${CELL}px` }}>{l}</span>
+                ))}
+              </div>
+              <div style={{ position: 'relative', height: 7 * (CELL + GAP) - GAP, width: totalCols * (CELL + GAP) - GAP }}>
+                {cells.map(c => (
+                  <div
+                    key={c.date}
+                    title={`${c.date} — ${YEAR_HEAT[c.status]?.label || c.status}`}
+                    style={{
+                      position: 'absolute',
+                      left: c.col * (CELL + GAP),
+                      top: c.row * (CELL + GAP),
+                      width: CELL, height: CELL, borderRadius: 2,
+                      background: YEAR_HEAT[c.status]?.color || 'var(--border)',
+                      opacity: c.status === 'off' ? 0.45 : 1,
+                    }}
+                  />
+                ))}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function PersonReport() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
@@ -175,6 +266,8 @@ export default function PersonReport() {
   const [report, setReport] = useState(null);
   const [loading, setLoading] = useState(false);
   const [leaveBalance, setLeaveBalance] = useState([]);
+  const [yearDays, setYearDays] = useState([]);
+  const [yearLoading, setYearLoading] = useState(false);
 
   useEffect(() => {
     api.get('/employees')
@@ -203,6 +296,15 @@ export default function PersonReport() {
         .catch(() => setLeaveBalance([]));
     }
   }, [selectedId, refreshKey]);
+
+  useEffect(() => {
+    if (!selectedId) return;
+    setYearLoading(true);
+    api.get(`/employees/${selectedId}/year-attendance?year=${year}`)
+      .then(res => setYearDays(res.data.days || []))
+      .catch(() => setYearDays([]))
+      .finally(() => setYearLoading(false));
+  }, [selectedId, year, refreshKey]);
 
   const stats = report?.stats || {};
   const emp   = report?.employee || {};
@@ -463,6 +565,7 @@ export default function PersonReport() {
             </div>
           </div>
         </div>
+        <YearAttendanceHeatmap days={yearDays} year={year} loading={yearLoading} />
         <LeaveHistory requests={report.leaveRequests || []} year={year} />
         </>
       ) : null}

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdSettings } from 'react-icons/md';
+import { MdMenu, MdDarkMode, MdLightMode, MdRefresh, MdSettings, MdSearch } from 'react-icons/md';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationPanel from './NotificationPanel';
@@ -21,7 +21,7 @@ const iconBtn = {
   padding: 0,
 };
 
-export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefresh, onRefresh }) {
+export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefresh, onRefresh, onOpenSearch }) {
   const { user, logout } = useAuth();
   const { dark, toggle } = useTheme();
   const navigate = useNavigate();
@@ -69,6 +69,33 @@ export default function Topbar({ title, sidebarWidth, onToggleSidebar, lastRefre
 
       {/* Right — controls */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+
+        {/* Global search (Ctrl+K) */}
+        <button
+          onClick={onOpenSearch}
+          title="Search people, projects, pages (Ctrl+K)"
+          style={{
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: 7,
+            height: 32,
+            padding: '0 12px',
+            borderRadius: 999,
+            border: '1px solid var(--border)',
+            background: 'var(--bg)',
+            color: 'var(--text-muted)',
+            fontSize: 12,
+            fontWeight: 500,
+            cursor: 'pointer',
+            whiteSpace: 'nowrap',
+          }}
+          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+        >
+          <MdSearch size={15} style={{ flexShrink: 0 }} />
+          <span className="hidden md:inline">Search</span>
+          <kbd style={{ fontSize: 9, border: '1px solid var(--border)', borderRadius: 4, padding: '1px 5px', background: 'var(--card)' }}>Ctrl K</kbd>
+        </button>
 
         {/* SSE live indicator */}
         <div style={{

@@ -1,4 +1,26 @@
-export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E75', accent, loading }) {
+// delta: { diff: number, invert?: boolean } — ▲/▼ vs previous working day.
+// invert=true means an increase is bad (late, absent) and renders red.
+function DeltaChip({ diff, invert }) {
+  if (diff === 0) {
+    return (
+      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+        style={{ background: 'var(--bg)', color: 'var(--text-muted)' }}>
+        = same
+      </span>
+    );
+  }
+  const up   = diff > 0;
+  const good = invert ? !up : up;
+  const color = good ? '#1D9E75' : '#E24B4A';
+  return (
+    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+      style={{ background: `${color}14`, color }}>
+      {up ? '▲' : '▼'} {up ? '+' : ''}{diff}
+    </span>
+  );
+}
+
+export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E75', accent, loading, delta }) {
   const accentColor = accent || color;
 
   if (loading) {
@@ -33,9 +55,12 @@ export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E
         )}
       </div>
 
-      <p className="text-[28px] font-bold leading-none mb-1.5" style={{ color: 'var(--text)' }}>
-        {value ?? <span className="text-[var(--text-muted)]">—</span>}
-      </p>
+      <div className="flex items-baseline gap-2 mb-1.5">
+        <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
+          {value ?? <span className="text-[var(--text-muted)]">—</span>}
+        </p>
+        {delta && <DeltaChip diff={delta.diff} invert={delta.invert} />}
+      </div>
 
       {sub && (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
