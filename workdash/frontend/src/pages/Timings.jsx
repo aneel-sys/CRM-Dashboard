@@ -119,10 +119,14 @@ export default function Timings() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="Total Hours"    value={`${summary.totalHours || '0.00'}h`}      icon={MdAvTimer}  color="#378ADD" loading={loading} />
-        <StatCard title="Avg/Employee"   value={`${summary.avgPerEmployee || '0.00'}h`}  icon={MdPeople}   color="#1D9E75" loading={loading} />
-        <StatCard title="Avg/Day"        value={`${summary.avgPerDay || '0.00'}h`}        icon={MdToday}    color="#EF9F27" loading={loading} />
-        <StatCard title="Log Entries"    value={summary.totalEntries || 0}                icon={MdList}     color="#7C3AED" loading={loading} />
+        <StatCard title="Total Hours"    value={`${summary.totalHours || '0.00'}h`}      icon={MdAvTimer}  color="#378ADD" loading={loading}
+          sub={summary.totalEntries ? `from ${summary.totalEntries} log entries` : undefined} />
+        <StatCard title="Avg/Employee"   value={`${summary.avgPerEmployee || '0.00'}h`}  icon={MdPeople}   color="#1D9E75" loading={loading}
+          sub={summary.employees ? `${summary.totalHours}h across ${summary.employees} employee${summary.employees !== 1 ? 's' : ''}` : undefined} />
+        <StatCard title="Avg/Day"        value={`${summary.avgPerDay || '0.00'}h`}        icon={MdToday}    color="#EF9F27" loading={loading}
+          sub={summary.days ? `${summary.totalHours}h over ${summary.days} day${summary.days !== 1 ? 's' : ''} with logs` : undefined} />
+        <StatCard title="Log Entries"    value={summary.totalEntries || 0}                icon={MdList}     color="#7C3AED" loading={loading}
+          sub={summary.employees ? `by ${summary.employees} employee${summary.employees !== 1 ? 's' : ''}` : undefined} />
       </div>
 
       {/* Table */}

@@ -382,7 +382,7 @@ function ProjectDetail({ project, onBack }) {
           </div>
           <div className="flex justify-between text-[10px] mt-1.5" style={{ color: 'var(--text-muted)' }}>
             <span>Start</span>
-            <span>Today · {Math.max(0, elapsedDays)} days in</span>
+            <span>Today · {Math.max(0, elapsedDays)}/{totalDays} days</span>
             <span>Deadline</span>
           </div>
         </div>

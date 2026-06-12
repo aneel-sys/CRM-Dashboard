@@ -96,7 +96,9 @@ function GreetingHeader({ stats, loading, username }) {
               </div>
               <span style={{ fontSize: 13, fontWeight: 800, color: pulse.color, minWidth: 36 }}>{presentPct}%</span>
             </div>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>attendance today</p>
+            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
+              {stats.present ?? 0} of {stats.total ?? 0} clocked in today
+            </p>
           </div>
           {/* Divider */}
           <div style={{ width: 1, height: 32, background: pulse.border }} />
@@ -148,11 +150,14 @@ function DeptRow({ dept, onClick }) {
       <td style={{ textAlign: 'center' }}>
         <span className="text-sm" style={{ color: dept.absent > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{dept.absent}</span>
       </td>
-      <td style={{ width: 100 }}>
+      <td style={{ width: 120 }}>
         <div className="flex items-center gap-2">
           <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
             <div style={{ width: `${pct}%`, height: '100%', borderRadius: 9999, background: color }} />
           </div>
+          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
+            {dept.present}/{dept.total}
+          </span>
           <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>{pct}%</span>
         </div>
       </td>
@@ -445,6 +450,7 @@ export default function Overview() {
   const [projectHealth, setProjectHealth]   = useState(null);
   const [healthLoading, setHealthLoading]   = useState(true);
   const [performers, setPerformers]         = useState([]);
+  const [perfDays, setPerfDays]             = useState(0);
   const [perfLoading, setPerfLoading]       = useState(true);
 
   const _now = new Date();
@@ -501,7 +507,10 @@ export default function Overview() {
   useEffect(() => {
     setPerfLoading(true);
     api.get('/overview/top-performers')
-      .then(res => setPerformers(res.data.performers || []))
+      .then(res => {
+        setPerformers(res.data.performers || []);
+        setPerfDays(res.data.workingDays || 0);
+      })
       .catch(() => setPerformers([]))
       .finally(() => setPerfLoading(false));
   }, [refreshKey]);
@@ -996,7 +1005,7 @@ export default function Overview() {
                       {p.total_hours.toFixed(1)}h
                     </p>
                     <p style={{ fontSize: 10, color: p.attendance_pct >= 80 ? '#1D9E75' : p.attendance_pct >= 60 ? '#EF9F27' : '#E24B4A', margin: 0, fontWeight: 600 }}>
-                      {p.attendance_pct}% att.
+                      {perfDays > 0 ? `${p.days_present}/${perfDays}d · ` : ''}{p.attendance_pct}% att.
                     </p>
                   </div>
                 </div>

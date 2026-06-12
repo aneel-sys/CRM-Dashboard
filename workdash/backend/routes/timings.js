@@ -57,6 +57,8 @@ router.get('/', requireAuth, async (req, res) => {
         avgPerEmployee: uniqueEmployees ? (totalHours / uniqueEmployees).toFixed(1) : '0.0',
         avgPerDay: uniqueDays ? (totalHours / uniqueDays).toFixed(1) : '0.0',
         totalEntries: rows.length,
+        employees: uniqueEmployees,
+        days: uniqueDays,
       },
     });
   } catch (err) {

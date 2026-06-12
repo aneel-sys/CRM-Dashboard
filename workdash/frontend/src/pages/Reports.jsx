@@ -166,15 +166,24 @@ function ProgressBar({ value }) {
   );
 }
 
-function renderCell(key, value) {
+function renderCell(key, value, row) {
   if (value === null || value === undefined || value === '') return <span style={{ color: 'var(--text-muted)' }}>—</span>;
   if (key === 'status' || key === 'health') return <StatusPill value={value} />;
   if (key === 'completion_pct') return <ProgressBar value={value} />;
-  if (key === 'attendance_pct') return (
-    <span style={{ fontWeight: 600, color: value >= 80 ? '#1D9E75' : value >= 60 ? '#EF9F27' : '#E24B4A' }}>
-      {value}%
-    </span>
-  );
+  if (key === 'attendance_pct') {
+    const present = row?.this_month_present ?? row?.days_present;
+    const base = row?.working_days;
+    return (
+      <span style={{ fontWeight: 600, color: value >= 80 ? '#1D9E75' : value >= 60 ? '#EF9F27' : '#E24B4A' }}>
+        {value}%
+        {present !== undefined && base > 0 && (
+          <span style={{ fontWeight: 500, color: 'var(--text-muted)', marginLeft: 5, fontSize: 11 }}>
+            ({present}/{base}d)
+          </span>
+        )}
+      </span>
+    );
+  }
   if (key === 'hours_worked' || key === 'hours' || key === 'total_hours' || key === 'avg_hours' || key === 'this_month_hours') {
     const n = parseFloat(value);
     return <span style={{ fontWeight: 600, color: 'var(--primary)' }}>{isNaN(n) ? value : `${n}h`}</span>;
@@ -831,7 +840,7 @@ export default function Reports() {
                     >
                       {visibleCols.map(col => (
                         <td key={col.key} style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
-                          {renderCell(col.key, row[col.key])}
+                          {renderCell(col.key, row[col.key], row)}
                         </td>
                       ))}
                     </tr>

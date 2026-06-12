@@ -171,6 +171,7 @@ async function fetchMonthlySummary(q) {
     r.days_present   = Number(r.days_present)   || 0;
     r.days_late      = Number(r.days_late)       || 0;
     r.days_absent    = Math.max(0, wDays - r.days_present);
+    r.working_days   = wDays;
     r.total_hours    = parseFloat(r.total_hours) || 0;
     r.avg_hours      = parseFloat(r.avg_hours)   || 0;
     r.attendance_pct = wDays > 0 ? Math.round((r.days_present / wDays) * 100) : 0;
@@ -268,6 +269,7 @@ async function fetchTeam(q) {
     r.this_month_present = Number(r.this_month_present) || 0;
     r.this_month_late    = Number(r.this_month_late)    || 0;
     r.this_month_hours   = parseFloat(r.this_month_hours) || 0;
+    r.working_days       = wDays;
     r.attendance_pct     = wDays > 0 ? Math.round((r.this_month_present / wDays) * 100) : 0;
     r.join_date          = fmtDate(r.join_date);
   });

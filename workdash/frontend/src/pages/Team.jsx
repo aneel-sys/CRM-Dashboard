@@ -9,13 +9,18 @@ import { useSettings } from '../context/SettingsContext';
 
 const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
-function AttendanceBar({ pct }) {
+function AttendanceBar({ pct, days, total }) {
   const color = pct >= 80 ? 'var(--primary)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
   return (
-    <div className="flex items-center gap-2 min-w-[100px]">
+    <div className="flex items-center gap-2 min-w-[130px]">
       <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
         <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
       </div>
+      {total > 0 && (
+        <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)' }}>
+          {days || 0}/{total}d
+        </span>
+      )}
       <span className="text-xs font-bold w-8 text-right" style={{ color }}>{pct}%</span>
     </div>
   );
@@ -46,6 +51,7 @@ export default function Team() {
   const [deptId, setDeptId] = useState('');
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
+  const [workingDays, setWorkingDays] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -60,7 +66,10 @@ export default function Team() {
     if (deptId) p.set('department_id', deptId);
     if (search) p.set('search', search);
     api.get(`/team?${p}`)
-      .then(res => setEmployees(res.data.employees || []))
+      .then(res => {
+        setEmployees(res.data.employees || []);
+        setWorkingDays(res.data.workingDays || 0);
+      })
       .catch(err => toast(err.response?.data?.message || 'Failed to load team'))
       .finally(() => setLoading(false));
   };
@@ -124,7 +133,7 @@ export default function Team() {
     },
     {
       key: 'attendance_pct', label: 'Attendance',
-      render: v => <AttendanceBar pct={v || 0} />,
+      render: (v, row) => <AttendanceBar pct={v || 0} days={row.present_days} total={workingDays} />,
     },
     {
       key: 'active_projects', label: 'Projects', align: 'center',
