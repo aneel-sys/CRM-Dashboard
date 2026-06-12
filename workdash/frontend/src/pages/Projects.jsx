@@ -3,7 +3,7 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   MdArrowBack, MdPeople, MdSchedule, MdFolderOpen, MdAttachMoney,
 } from 'react-icons/md';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Treemap } from 'recharts';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
@@ -525,31 +525,9 @@ function ProjectDetail({ project, onBack }) {
   );
 }
 
-const TREE_COLORS = ['#1D9E75', '#378ADD', '#EF9F27', '#7C3AED', '#EC4899', '#0891B2', '#E24B4A', '#65A30D', '#D97706', '#6366F1'];
+const HOURS_COLORS = ['#1D9E75', '#378ADD', '#EF9F27', '#7C3AED', '#EC4899', '#0891B2', '#E24B4A', '#65A30D', '#D97706'];
 
-function TreeCell({ x, y, width, height, index, name, hours }) {
-  if (width < 4 || height < 4) return null;
-  const showLabel = width > 70 && height > 34;
-  const color = TREE_COLORS[index % TREE_COLORS.length];
-  return (
-    <g>
-      <rect x={x} y={y} width={width} height={height} rx={4}
-        style={{ fill: color, stroke: 'var(--card-bg, #fff)', strokeWidth: 3, opacity: 0.88 }} />
-      {showLabel && (
-        <>
-          <text x={x + 8} y={y + 18} style={{ fill: '#fff', fontSize: 11, fontWeight: 700, pointerEvents: 'none' }}>
-            {name.length > width / 7 ? name.slice(0, Math.floor(width / 7)) + '…' : name}
-          </text>
-          <text x={x + 8} y={y + 32} style={{ fill: '#fff', fontSize: 10, opacity: 0.85, pointerEvents: 'none' }}>
-            {hours}h
-          </text>
-        </>
-      )}
-    </g>
-  );
-}
-
-function HoursTreemapCard() {
+function HoursByProjectCard() {
   const [period, setPeriod] = useState('month');
   const [data, setData] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -557,19 +535,27 @@ function HoursTreemapCard() {
   useEffect(() => {
     setLoading(true);
     api.get(`/projects/hours-chart?period=${period}`)
-      .then(res => setData((res.data.data || []).filter(d => d.hours > 0).slice(0, 14)))
+      .then(res => {
+        const all = (res.data.data || []).filter(d => d.hours > 0);
+        // Top 8 projects + the rest grouped as "Others"
+        const top = all.slice(0, 8);
+        const restHours = all.slice(8).reduce((s, d) => s + d.hours, 0);
+        if (restHours > 0) top.push({ name: `Others (${all.length - 8} projects)`, hours: Math.round(restHours * 10) / 10 });
+        setData(top);
+      })
       .catch(() => setData([]))
       .finally(() => setLoading(false));
   }, [period]);
 
   const total = data.reduce((s, d) => s + d.hours, 0);
+  const periodLabel = period === 'month' ? 'this month' : period === 'week' ? 'last 7 days' : 'all time';
 
   return (
     <div className="card overflow-hidden">
       <div className="flex items-center justify-between px-5 py-4 flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
         <div>
           <p className="section-title">Where Time Goes · Hours by Project</p>
-          <p className="section-sub">{total > 0 ? `${total.toFixed(0)}h logged ${period === 'month' ? 'this month' : period === 'week' ? 'last 7 days' : 'all time'}` : 'Logged project hours'}</p>
+          <p className="section-sub">{total > 0 ? `${total.toFixed(0)}h logged ${periodLabel} across ${data.length} project${data.length !== 1 ? 's' : ''}` : 'Logged project hours'}</p>
         </div>
         <div className="flex gap-1">
           {[['week', 'Week'], ['month', 'Month'], ['all', 'All Time']].map(([val, label]) => (
@@ -583,7 +569,7 @@ function HoursTreemapCard() {
           ))}
         </div>
       </div>
-      <div className="p-4">
+      <div className="p-5">
         {loading ? (
           <div className="skeleton h-56 rounded" />
         ) : data.length === 0 ? (
@@ -591,12 +577,52 @@ function HoursTreemapCard() {
             <p className="text-sm">No project hours logged in this period</p>
           </div>
         ) : (
-          <ResponsiveContainer width="100%" height={240}>
-            <Treemap data={data} dataKey="hours" nameKey="name" isAnimationActive={false}
-              content={<TreeCell />}>
-              <Tooltip formatter={v => [`${v}h`, 'Hours']} />
-            </Treemap>
-          </ResponsiveContainer>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 items-center">
+            {/* Donut with total in the center */}
+            <div style={{ position: 'relative', height: 230 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie data={data} dataKey="hours" nameKey="name" cx="50%" cy="50%"
+                    innerRadius={68} outerRadius={100} paddingAngle={2}>
+                    {data.map((_, i) => <Cell key={i} fill={HOURS_COLORS[i % HOURS_COLORS.length]} />)}
+                  </Pie>
+                  <Tooltip formatter={(v, n) => [`${v}h (${total > 0 ? Math.round((v / total) * 100) : 0}%)`, n]} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div style={{
+                position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+              }}>
+                <p style={{ fontSize: 22, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{total.toFixed(0)}h</p>
+                <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{periodLabel}</p>
+              </div>
+            </div>
+
+            {/* Ranked list: hours + share of total */}
+            <div className="space-y-2">
+              {data.map((d, i) => {
+                const pct = total > 0 ? Math.round((d.hours / total) * 100) : 0;
+                const color = HOURS_COLORS[i % HOURS_COLORS.length];
+                return (
+                  <div key={d.name} className="flex items-center gap-3">
+                    <span style={{ width: 9, height: 9, borderRadius: 3, background: color, flexShrink: 0 }} />
+                    <span className="text-[13px] font-medium truncate" style={{ color: 'var(--text)', flex: 1, minWidth: 0 }}>
+                      {d.name}
+                    </span>
+                    <div className="h-1.5 rounded-full overflow-hidden hidden sm:block" style={{ background: 'var(--border)', width: 90 }}>
+                      <div className="h-full rounded-full" style={{ width: `${pct}%`, background: color }} />
+                    </div>
+                    <span className="text-[13px] font-bold whitespace-nowrap" style={{ color: 'var(--text)', minWidth: 52, textAlign: 'right' }}>
+                      {d.hours}h
+                    </span>
+                    <span className="text-[11px] font-semibold whitespace-nowrap" style={{ color: 'var(--text-muted)', minWidth: 34, textAlign: 'right' }}>
+                      {pct}%
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         )}
       </div>
     </div>
@@ -699,8 +725,8 @@ export default function Projects() {
         </div>
       </div>
 
-      {/* Org-wide hours by project treemap */}
-      <HoursTreemapCard />
+      {/* Org-wide hours by project — donut + ranked share list */}
+      <HoursByProjectCard />
 
       {/* Grid */}
       {loading ? (
