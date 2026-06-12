@@ -226,9 +226,41 @@ router.get('/expiring', requireAuth, async (req, res) => {
   }
 });
 
-// GET /api/hr/leave-usage — top 5 employees by leave taken + total counts
+// GET /api/hr/leave-usage?period=year|month — top 5 employees by leave taken
 router.get('/leave-usage', requireAuth, async (req, res) => {
   try {
+    // This Month — count approved leave days from the leaves table directly.
+    // (Quota used/remaining are yearly figures, so they only apply to period=year.)
+    if (req.query.period === 'month') {
+      const [rows] = await pool.query(
+        `SELECT u.id, u.name, t.team_name as department,
+                lt.type_name, lt.color,
+                SUM(CASE WHEN l.duration = 'half day' THEN 0.5 ELSE 1 END) as used
+         FROM ${tbl('leaves')} l
+         JOIN ${tbl('users')} u ON u.id = l.user_id AND u.status = 'active'
+         LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+         LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+         LEFT JOIN ${tbl('teams')} t ON t.id = ed.department_id
+         WHERE l.status = 'approved'
+           AND MONTH(l.leave_date) = MONTH(CURDATE()) AND YEAR(l.leave_date) = YEAR(CURDATE())
+         GROUP BY u.id, u.name, t.team_name, lt.id, lt.type_name, lt.color`,
+      );
+      const map = {};
+      rows.forEach(r => {
+        if (!map[r.id]) map[r.id] = {
+          id: r.id, name: r.name, department: r.department,
+          types: [], totalUsed: 0, totalRemaining: null,
+        };
+        const used = parseFloat(r.used) || 0;
+        map[r.id].types.push({ type_name: r.type_name || 'Leave', color: r.color, used, allocated: 0, remaining: null });
+        map[r.id].totalUsed += used;
+      });
+      const employees = Object.values(map)
+        .sort((a, b) => b.totalUsed - a.totalUsed)
+        .slice(0, 5);
+      return res.json({ success: true, employees, withLeave: Object.keys(map).length, period: 'month' });
+    }
+
     // top 5 employees by total leaves used
     const [topRows] = await pool.query(
       `SELECT u.id, u.name, t.team_name as department,

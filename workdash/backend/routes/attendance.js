@@ -216,7 +216,7 @@ router.get('/export', requireAuth, async (req, res) => {
 // GET /api/attendance/trend?days=30
 router.get('/trend', requireAuth, async (req, res) => {
   try {
-    const days = Math.min(parseInt(req.query.days) || 30, 60);
+    const days = Math.min(parseInt(req.query.days) || 30, 90);
     const settings = await getOfficeSettings();
     // Worksuite stores open days as 1=Mon … 7=Sun; JS getUTCDay() is 0=Sun
     const openDays = (settings.officeOpenDays || [1, 2, 3, 4, 5])

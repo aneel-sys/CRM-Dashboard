@@ -105,6 +105,8 @@ export default function HR() {
   const [gender,       setGender]       = useState([]);
   const [empTypes,     setEmpTypes]     = useState([]);
   const [leaveUsage,   setLeaveUsage]   = useState({ employees: [], withLeave: 0 });
+  const [leavePeriod,  setLeavePeriod]  = useState('year');
+  const [leaveLoading, setLeaveLoading] = useState(false);
   const [departments,  setDepartments]  = useState([]);
   const [joiners,      setJoiners]      = useState([]);
   const [expiring,     setExpiring]     = useState([]);
@@ -128,7 +130,7 @@ export default function HR() {
       api.get('/hr/headcount'),
       api.get('/hr/gender'),
       api.get('/hr/employment-types'),
-      api.get('/hr/leave-usage'),
+      api.get(`/hr/leave-usage?period=${leavePeriod}`),
       api.get('/hr/departments'),
       api.get('/hr/new-joiners'),
       api.get('/hr/expiring'),
@@ -144,6 +146,17 @@ export default function HR() {
     }).catch(() => toast('Failed to load HR data'))
       .finally(() => setSummaryLoading(false));
   }, [refreshKey]);
+
+  // Refetch leave usage when the period toggle changes (skip initial mount — covered above)
+  const leavePeriodMounted = useRef(false);
+  useEffect(() => {
+    if (!leavePeriodMounted.current) { leavePeriodMounted.current = true; return; }
+    setLeaveLoading(true);
+    api.get(`/hr/leave-usage?period=${leavePeriod}`)
+      .then(l => setLeaveUsage({ employees: l.data.employees || [], withLeave: l.data.withLeave || 0 }))
+      .catch(() => {})
+      .finally(() => setLeaveLoading(false));
+  }, [leavePeriod]);
 
   // Debounce search
   useEffect(() => {
@@ -256,16 +269,23 @@ export default function HR() {
 
         <div className="lg:col-span-3">
           <SectionCard
-            title="Leave Usage · This Year"
+            title={`Leave Usage · ${leavePeriod === 'month' ? 'This Month' : 'This Year'}`}
             subtitle={leaveUsage.withLeave > 0 ? `${leaveUsage.withLeave} of ${summary.total} employees have taken leave` : 'Leave usage by employee'}
             action={
-              <button onClick={() => navigate('/reports')} className="btn btn-ghost text-xs"
-                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                Reports →
-              </button>
+              <div className="flex items-center gap-1">
+                {[['month', 'This Month'], ['year', 'This Year']].map(([val, label]) => (
+                  <button key={val} onClick={() => setLeavePeriod(val)}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                    style={leavePeriod === val
+                      ? { background: 'var(--primary)', color: '#fff' }
+                      : { background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                    {label}
+                  </button>
+                ))}
+              </div>
             }
           >
-            {summaryLoading ? (
+            {(summaryLoading || leaveLoading) ? (
               <div className="space-y-3">
                 {[1,2,3,4,5].map(i => <div key={i} className="skeleton rounded-xl" style={{ height: 52 }} />)}
               </div>
@@ -330,7 +350,9 @@ export default function HR() {
                         {/* Used · Remaining */}
                         <div style={{ textAlign: 'right', flexShrink: 0 }}>
                           <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', margin: 0 }}>{emp.totalUsed.toFixed(1)}d</p>
-                          <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{emp.totalRemaining.toFixed(0)}d left</p>
+                          <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
+                            {emp.totalRemaining != null ? `${emp.totalRemaining.toFixed(0)}d left` : 'this month'}
+                          </p>
                         </div>
                       </div>
                     );

@@ -106,6 +106,7 @@ export default function Attendance() {
   const [trendLoading, setTrendLoading] = useState(true);
   const [offenders, setOffenders] = useState([]);
   const [offendersLoading, setOffendersLoading] = useState(true);
+  const [trendDays, setTrendDays] = useState(30);
 
   useEffect(() => {
     api.get('/attendance/departments')
@@ -115,16 +116,16 @@ export default function Attendance() {
 
   useEffect(() => {
     setTrendLoading(true);
-    api.get('/attendance/trend?days=30')
+    api.get(`/attendance/trend?days=${trendDays}`)
       .then(res => setTrend(res.data.trend || []))
       .catch(() => {})
       .finally(() => setTrendLoading(false));
     setOffendersLoading(true);
-    api.get('/attendance/late-offenders?days=30')
+    api.get(`/attendance/late-offenders?days=${trendDays}`)
       .then(res => setOffenders(res.data.offenders || []))
       .catch(() => {})
       .finally(() => setOffendersLoading(false));
-  }, [refreshKey]);
+  }, [refreshKey, trendDays]);
 
   const fetchData = () => {
     setLoading(true);
@@ -159,8 +160,27 @@ export default function Attendance() {
   const absentOnLeave = (data?.records || [])
     .filter(r => r.attendance_status === 'Absent' && r.leave_status === 'approved').length;
 
-  // Show only last 14 days in chart to keep labels readable
-  const chartData = trend.slice(-14);
+  // Keep bar labels readable: daily bars for week/month, weekly totals for 3 months
+  const chartData = (() => {
+    if (trendDays === 7) return trend;
+    if (trendDays === 30) return trend.slice(-22);
+    const weeks = {};
+    trend.forEach(t => {
+      const d = new Date(`${t.date}T00:00:00Z`);
+      d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7)); // back to Monday
+      const key = d.toISOString().slice(0, 10);
+      if (!weeks[key]) {
+        weeks[key] = {
+          label: `w/c ${d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' })}`,
+          onTime: 0, late: 0, absent: 0,
+        };
+      }
+      weeks[key].onTime += t.onTime;
+      weeks[key].late   += t.late;
+      weeks[key].absent += t.absent;
+    });
+    return Object.keys(weeks).sort().map(k => weeks[k]);
+  })();
 
   const COLUMNS = [
     { key: 'idx', label: '#', align: 'center', render: (_, __, i) => <span style={{ color: 'var(--text-muted)' }}>{i + 1}</span> },
@@ -277,10 +297,23 @@ export default function Attendance() {
       {/* 30-Day Trend Chart + Frequent Late Arrivals */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
         <div className="card overflow-hidden h-full flex flex-col lg:col-span-3">
-          <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+          <div className="flex items-center justify-between px-5 py-4 shrink-0 flex-wrap gap-2" style={{ borderBottom: '1px solid var(--border)' }}>
             <div>
-              <p className="section-title">30-Day Attendance Trend</p>
-              <p className="section-sub">Last 14 working days · weekends &amp; holidays excluded</p>
+              <p className="section-title">Attendance Trend</p>
+              <p className="section-sub">
+                {trendDays === 90 ? 'Weekly totals (person-days)' : 'Working days only'} · weekends &amp; holidays excluded
+              </p>
+            </div>
+            <div className="flex gap-1">
+              {[[7, 'Week'], [30, 'Month'], [90, '3 Months']].map(([val, label]) => (
+                <button key={val} onClick={() => setTrendDays(val)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-lg transition-colors"
+                  style={trendDays === val
+                    ? { background: 'var(--primary)', color: '#fff' }
+                    : { background: 'var(--bg)', color: 'var(--text-muted)', border: '1px solid var(--border)' }}>
+                  {label}
+                </button>
+              ))}
             </div>
           </div>
           <div className="px-5 py-4 flex-1 flex flex-col justify-center">
@@ -306,7 +339,7 @@ export default function Attendance() {
           </div>
         </div>
         <div className="lg:col-span-2 h-full">
-          <LateOffendersCard offenders={offenders} loading={offendersLoading} days={30} />
+          <LateOffendersCard offenders={offenders} loading={offendersLoading} days={trendDays} />
         </div>
       </div>
 
