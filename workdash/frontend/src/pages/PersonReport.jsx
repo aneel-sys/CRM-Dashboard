@@ -153,11 +153,18 @@ function Avatar({ name, size = 64 }) {
   );
 }
 
-function KpiBox({ label, value, color }) {
+function KpiBox({ label, value, base, baseLabel, color }) {
   return (
     <div className="rounded-xl p-4 text-center" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
-      <p className="text-[22px] font-bold leading-none mb-1" style={{ color }}>{value ?? '—'}</p>
-      <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>{label}</p>
+      <p className="text-[22px] font-bold leading-none mb-1" style={{ color }}>
+        {value ?? '—'}
+        {base > 0 && value !== undefined && value !== null && (
+          <span style={{ fontSize: 13, fontWeight: 600, color: 'var(--text-muted)' }}>/{base}</span>
+        )}
+      </p>
+      <p className="text-[11px] font-medium" style={{ color: 'var(--text-muted)' }}>
+        {label}{base > 0 && baseLabel ? ` · of ${base} ${baseLabel}` : ''}
+      </p>
     </div>
   );
 }
@@ -270,8 +277,8 @@ export default function PersonReport() {
           <div className="lg:col-span-3 space-y-4">
             {/* KPI row */}
             <div className="grid grid-cols-3 gap-3">
-              <KpiBox label="Days Present" value={stats.presentDays} color="var(--primary)" />
-              <KpiBox label="Late Days"    value={stats.lateDays}    color="var(--warning)" />
+              <KpiBox label="Days Present" value={stats.presentDays} base={stats.workingDays} baseLabel="working days" color="var(--primary)" />
+              <KpiBox label="Late Days"    value={stats.lateDays}    base={stats.presentDays} baseLabel="days present" color="var(--warning)" />
               <KpiBox label="Total Hours"  value={`${stats.totalHours}h`} color="var(--info)" />
             </div>
 
@@ -410,13 +417,18 @@ export default function PersonReport() {
                 {/* 2x2 grid */}
                 <div className="grid grid-cols-2 gap-2">
                   {[
-                    { label: 'Present', value: stats.presentDays, bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
-                    { label: 'Late',    value: stats.lateDays,    bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-                    { label: 'Absent',  value: stats.absentDays,  bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
-                    { label: 'Leave',   value: stats.leaveDays,   bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
+                    { label: 'Present', value: stats.presentDays, base: stats.workingDays, bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+                    { label: 'Late',    value: stats.lateDays,    base: stats.presentDays, bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
+                    { label: 'Absent',  value: stats.absentDays,  base: stats.workingDays, bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
+                    { label: 'Leave',   value: stats.leaveDays,   base: stats.workingDays, bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
                   ].map(item => (
                     <div key={item.label} className="rounded-lg p-3 text-center" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
-                      <p className="text-[22px] font-bold" style={{ color: item.color }}>{item.value ?? '—'}</p>
+                      <p className="text-[22px] font-bold" style={{ color: item.color }}>
+                        {item.value ?? '—'}
+                        {item.base > 0 && item.value !== undefined && (
+                          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.55 }}>/{item.base}</span>
+                        )}
+                      </p>
                       <p className="text-[11px] font-semibold mt-0.5" style={{ color: item.color }}>{item.label}</p>
                     </div>
                   ))}

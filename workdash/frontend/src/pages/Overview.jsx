@@ -580,7 +580,7 @@ export default function Overview() {
         {[
           { title: 'Present Today',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',                                   sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance',
             delta: stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
-          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: 'arrived after office start',                                     to: '/attendance?status=Late',
+          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start', to: '/attendance?status=Late',
             delta: stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
           { title: 'Hours This Month', icon: MdAvTimer,    color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects',                                          to: '/timings' },
         ].map(card => (
@@ -617,6 +617,9 @@ export default function Overview() {
             <div className="flex items-baseline gap-2 mb-1.5">
               <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
                 {stats.absent ?? '—'}
+                {stats.total > 0 && (
+                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>/{stats.total}</span>
+                )}
               </p>
               {stats.prev && (() => {
                 const diff = (stats.absent || 0) - stats.prev.absent;
@@ -659,9 +662,17 @@ export default function Overview() {
               </div>
             ) : (
               <>
-                <p className="text-5xl font-black mb-4" style={{ color: '#1D9E75' }}>
+                <p className="text-5xl font-black mb-1" style={{ color: '#1D9E75' }}>
                   {currentlyWorking.count}
+                  {stats.present > 0 && (
+                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>/{stats.present}</span>
+                  )}
                 </p>
+                {stats.present > 0 && (
+                  <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                    of {stats.present} who clocked in today
+                  </p>
+                )}
                 <div className="space-y-1.5">
                   {currentlyWorking.list.length === 0 ? (
                     <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>

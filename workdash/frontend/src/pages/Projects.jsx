@@ -403,8 +403,10 @@ function ProjectDetail({ project, onBack }) {
         />
         <KpiCard
           label="Hours Logged"
-          value={`${totalHoursLogged.toFixed(1)}h`}
-          sub="all time total"
+          value={project.hours_allocated > 0
+            ? `${totalHoursLogged.toFixed(1)}/${project.hours_allocated}h`
+            : `${totalHoursLogged.toFixed(1)}h`}
+          sub={project.hours_allocated > 0 ? 'logged / allocated' : 'all time total'}
           color="var(--primary)"
         />
         <KpiCard

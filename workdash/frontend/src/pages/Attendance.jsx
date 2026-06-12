@@ -155,6 +155,9 @@ export default function Attendance() {
   };
 
   const stats = data?.stats || {};
+  // Absent breakdown: how many of the absentees actually have an approved leave
+  const absentOnLeave = (data?.records || [])
+    .filter(r => r.attendance_status === 'Absent' && r.leave_status === 'approved').length;
 
   // Show only last 14 days in chart to keep labels readable
   const chartData = trend.slice(-14);
@@ -259,10 +262,16 @@ export default function Attendance() {
 
       {/* Stats */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        <StatCard title="On Time"     value={stats.onTime}  icon={MdCheckCircle} color="#1D9E75" loading={loading} />
-        <StatCard title="Late"        value={stats.late}    icon={MdAccessTime}  color="#EF9F27" loading={loading} />
-        <StatCard title="Absent"      value={stats.absent}  icon={MdPersonOff}   color="#E24B4A" loading={loading} />
-        <StatCard title="Total Staff" value={stats.total}   icon={MdPeople}      color="#378ADD" loading={loading} />
+        <StatCard title="On Time"     value={stats.onTime}  icon={MdCheckCircle} color="#1D9E75" loading={loading}
+          sub={stats.present > 0 ? `of ${stats.present} who clocked in` : undefined} />
+        <StatCard title="Late"        value={stats.late}    icon={MdAccessTime}  color="#EF9F27" loading={loading}
+          sub={stats.present > 0 ? `of ${stats.present} who clocked in` : undefined} />
+        <StatCard title="Absent"      value={stats.absent}  icon={MdPersonOff}   color="#E24B4A" loading={loading}
+          sub={stats.absent > 0
+            ? `${absentOnLeave} on approved leave · ${Math.max(0, (stats.absent || 0) - absentOnLeave)} no record`
+            : undefined} />
+        <StatCard title="Total Staff" value={stats.total}   icon={MdPeople}      color="#378ADD" loading={loading}
+          sub={stats.total > 0 ? `${stats.present ?? 0} in · ${stats.absent ?? 0} out` : undefined} />
       </div>
 
       {/* 30-Day Trend Chart + Frequent Late Arrivals */}

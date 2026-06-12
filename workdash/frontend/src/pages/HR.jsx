@@ -184,8 +184,8 @@ export default function HR() {
         {[
           { title: 'Total Employees',  icon: MdPeople,    color: '#1D9E75', value: summary.total      ?? '—', sub: 'active headcount' },
           { title: 'New This Month',   icon: MdPersonAdd, color: '#378ADD', value: summary.newJoiners  ?? '—', sub: new Date().toLocaleString('en-GB', { month: 'long' }) + ' joiners' },
-          { title: 'On Notice Period', icon: MdExitToApp, color: '#E24B4A', value: summary.onNotice    ?? '—', sub: 'serving notice' },
-          { title: 'On Probation',     icon: MdSchedule,  color: '#EF9F27', value: summary.onProbation ?? '—', sub: 'probation ongoing' },
+          { title: 'On Notice Period', icon: MdExitToApp, color: '#E24B4A', value: summary.onNotice    ?? '—', sub: summary.total ? `of ${summary.total} active employees` : 'serving notice' },
+          { title: 'On Probation',     icon: MdSchedule,  color: '#EF9F27', value: summary.onProbation ?? '—', sub: summary.total ? `of ${summary.total} active employees` : 'probation ongoing' },
         ].map(card => (
           <StatCard key={card.title} title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={summaryLoading} />
         ))}
