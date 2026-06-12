@@ -187,9 +187,13 @@ router.get('/:id/report', requireAuth, async (req, res) => {
            MAX(l.approve_reason) as approve_reason,
            MAX(l.paid)           as paid,
            MAX(l.half_day_type)  as half_day_type,
-           MAX(l.created_at)     as applied_at
+           DATE_FORMAT(MAX(l.created_at), '%d %b %Y') as applied_at,
+           MAX(l.over_utilized)  as over_utilized,
+           MAX(au.name)          as actioned_by,
+           DATE_FORMAT(MAX(l.approved_at), '%d %b %Y') as actioned_at
          FROM ${tbl('leaves')} l
          LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+         LEFT JOIN ${tbl('users')} au ON au.id = COALESCE(l.approved_by, l.last_updated_by)
          WHERE l.user_id = ?
            AND YEAR(l.leave_date) = ?
          GROUP BY COALESCE(l.unique_id, CAST(l.id AS CHAR))

@@ -48,8 +48,10 @@ function LeaveHistory({ requests, year }) {
                 <th>Period</th>
                 <th>Days</th>
                 <th>Reason</th>
+                <th>Applied On</th>
                 <th>Paid</th>
                 <th>Status</th>
+                <th>Actioned By</th>
               </tr>
             </thead>
             <tbody>
@@ -68,6 +70,15 @@ function LeaveHistory({ requests, year }) {
                       }}>
                         {r.type_name || 'Leave'}
                       </span>
+                      {!!Number(r.over_utilized) && (
+                        <span style={{
+                          fontSize: 9, fontWeight: 700, padding: '1px 5px', borderRadius: 4, marginLeft: 4,
+                          background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                          whiteSpace: 'nowrap', verticalAlign: 'middle',
+                        }}>
+                          Over quota
+                        </span>
+                      )}
                     </td>
                     <td style={{ whiteSpace: 'nowrap' }}>
                       <span style={{ fontSize: 12, color: 'var(--text)', fontWeight: 500 }}>
@@ -112,6 +123,9 @@ function LeaveHistory({ requests, year }) {
                         </span>
                       )}
                     </td>
+                    <td style={{ whiteSpace: 'nowrap' }}>
+                      <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{r.applied_at || '—'}</span>
+                    </td>
                     <td>
                       {r.paid ? (
                         <span style={{ fontSize: 11, fontWeight: 600, color: '#15803D' }}>Paid</span>
@@ -127,6 +141,22 @@ function LeaveHistory({ requests, year }) {
                       }}>
                         {s.label}
                       </span>
+                    </td>
+                    <td>
+                      {r.status === 'pending' || !r.actioned_by ? (
+                        <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>
+                      ) : (
+                        <div style={{ whiteSpace: 'nowrap' }}>
+                          <p style={{ fontSize: 12, fontWeight: 600, color: s.color, margin: 0 }}>
+                            {r.actioned_by}
+                          </p>
+                          {r.actioned_at && (
+                            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: '1px 0 0' }}>
+                              on {r.actioned_at}
+                            </p>
+                          )}
+                        </div>
+                      )}
                     </td>
                   </tr>
                 );
