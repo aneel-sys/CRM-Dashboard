@@ -17,7 +17,8 @@ import { useSettings } from '../context/SettingsContext';
 import { useSSE } from '../context/SSEContext';
 import { useAuth } from '../context/AuthContext';
 
-const DONUT_COLORS  = ['#1D9E75', '#378ADD', '#E24B4A', '#EF9F27'];
+// Present green · On Leave purple (matches leave color everywhere) · Absent red
+const DONUT_COLORS  = ['#1D9E75', '#8B5CF6', '#E24B4A', '#EF9F27'];
 const HEALTH_COLORS = { onTrack: '#1D9E75', atRisk: '#EF9F27', overdue: '#E24B4A' };
 
 // ─── helpers ──────────────────────────────────────────────────────────────
@@ -283,7 +284,7 @@ function AttendanceHeatmap({ data, total, year, onYearChange }) {
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginRight: 3 }}>Low</span>
-          {['#F3F4F6','#FEE2E2','#FEF3C7','#D1FAE5','#6EE7B7','#1D9E75'].map((c, i) => (
+          {['#FECACA','#FEE2E2','#FEF3C7','#D1FAE5','#6EE7B7','#1D9E75'].map((c, i) => (
             <div key={i} style={{ width: CELL, height: CELL, borderRadius: 3, background: c, border: '1px solid rgba(0,0,0,0.07)' }} />
           ))}
           <span style={{ fontSize: 10, color: 'var(--text-muted)', marginLeft: 3 }}>High</span>
@@ -946,15 +947,24 @@ export default function Overview() {
               </div>
             ) : (
               <div>
-                <ResponsiveContainer width="100%" height={110}>
-                  <PieChart>
-                    <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={30} outerRadius={46}
-                      dataKey="value" paddingAngle={3}>
-                      {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v, n) => [v, n]} />
-                  </PieChart>
-                </ResponsiveContainer>
+                <div style={{ position: 'relative', height: 150 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={44} outerRadius={66}
+                        dataKey="value" paddingAngle={3}>
+                        {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v, n) => [v, n]} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                  <div style={{
+                    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
+                    alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
+                  }}>
+                    <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{projectHealth.total}</p>
+                    <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>active</p>
+                  </div>
+                </div>
                 <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
                   {[
                     { label: 'On Track', value: projectHealth.onTrack, color: '#1D9E75' },
@@ -974,17 +984,15 @@ export default function Overview() {
       </div>
 
 
-      {/* ── Top Performers + Absence Alerts ───────────────────────────── */}
+      {/* ── Most Hours Logged + Who's Away Today ──────────────────────── */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
 
-        {/* Top Performers Leaderboard (replaces basic Top Workers) */}
-        <div className="card p-5">
-          <div className="flex items-center gap-2 mb-4">
-            <MdAvTimer size={16} style={{ color: '#378ADD' }} />
-            <p className="text-xs font-bold uppercase tracking-wider" style={{ color: 'var(--text-muted)', margin: 0 }}>
-              Most Hours Logged · This Month
-            </p>
-          </div>
+        <div className="h-full">
+        <SectionCard
+          title="Most Hours Logged"
+          subtitle="This month · attendance clock hours"
+          action={<MdAvTimer size={16} style={{ color: '#378ADD' }} />}
+        >
           {perfLoading ? (
             <div className="space-y-3">
               {Array.from({ length: 3 }).map((_, i) => (
@@ -1023,39 +1031,75 @@ export default function Overview() {
               ))}
             </div>
           )}
+        </SectionCard>
         </div>
 
-        {/* Absence Alerts */}
-        <div className="card p-5">
-          <p className="text-xs font-bold uppercase tracking-wider mb-4" style={{ color: 'var(--text-muted)' }}>Absence Alerts</p>
+        {/* Who's Away Today — actual names with leave status */}
+        <div className="h-full">
+        <SectionCard
+          title="Who's Away Today"
+          subtitle={loading ? '' : `${stats.absent || 0} away · ${stats.onLeave || 0} on leave · ${Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))} no record`}
+          action={
+            (stats.absent || 0) > 0 ? (
+              <button onClick={() => navigate('/attendance?status=Absent')} className="btn btn-ghost text-xs"
+                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                View All →
+              </button>
+            ) : null
+          }
+        >
           {loading ? (
             <div className="space-y-2">
-              {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-9 rounded-lg" />)}
+              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-9 rounded-lg" />)}
+            </div>
+          ) : !(data?.absentList?.length) ? (
+            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
+                <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
+              </svg>
+              <p className="text-sm font-medium">Everyone is in today</p>
             </div>
           ) : (
-            <div className="space-y-2">
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--danger-light)', border: '1px solid #FECACA', cursor: 'pointer' }}
-                onClick={() => navigate('/attendance?status=Absent')}>
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--danger)' }} />
-                <span className="text-sm font-semibold flex-1" style={{ color: 'var(--danger)' }}>{stats.absent || 0} absent today</span>
-                <span className="text-xs" style={{ color: 'var(--danger)', opacity: 0.6 }}>→</span>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--warning-light)', border: '1px solid #FDE68A', cursor: 'pointer' }}
-                onClick={() => navigate('/attendance?status=Late')}>
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--warning)' }} />
-                <span className="text-sm font-semibold flex-1" style={{ color: '#D97706' }}>{stats.late || 0} late arrivals</span>
-                <span className="text-xs" style={{ color: '#D97706', opacity: 0.6 }}>→</span>
-              </div>
-              <div className="flex items-center gap-3 rounded-lg px-3 py-2.5" style={{ background: 'var(--primary-light)', border: '1px solid #A7F3D0', cursor: 'pointer' }}
-                onClick={() => navigate('/attendance?status=On Time')}>
-                <span className="w-2 h-2 rounded-full shrink-0" style={{ background: 'var(--primary)' }} />
-                <span className="text-sm font-semibold flex-1" style={{ color: 'var(--primary-dark)' }}>
-                  {(stats.present || 0) - (stats.late || 0)} on time today
-                </span>
-                <span className="text-xs" style={{ color: 'var(--primary-dark)', opacity: 0.6 }}>→</span>
-              </div>
+            <div className="space-y-1">
+              {data.absentList.slice(0, 7).map(p => (
+                <div
+                  key={p.id}
+                  onClick={() => navigate(`/person?id=${p.id}`)}
+                  className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer"
+                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                  onMouseLeave={e => e.currentTarget.style.background = ''}
+                >
+                  <span className="w-2 h-2 rounded-full shrink-0"
+                    style={{ background: p.onLeave ? '#8B5CF6' : '#E24B4A' }} />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
+                    <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{p.department || '—'}</p>
+                  </div>
+                  {p.onLeave ? (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                      background: '#8B5CF614', color: '#8B5CF6', border: '1px solid #8B5CF633',
+                    }}>
+                      On Leave{p.leaveType ? ` · ${p.leaveType}` : ''}
+                    </span>
+                  ) : (
+                    <span style={{
+                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                      background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                    }}>
+                      No record
+                    </span>
+                  )}
+                </div>
+              ))}
+              {(stats.absent || 0) > 7 && (
+                <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                  +{(stats.absent || 0) - 7} more — View All
+                </p>
+              )}
             </div>
           )}
+        </SectionCard>
         </div>
 
       </div>

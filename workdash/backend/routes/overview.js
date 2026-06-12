@@ -148,6 +148,37 @@ router.get('/today', requireAuth, async (req, res) => {
       }));
     } catch { }
 
+    // Who's away today — names of absent employees with on-leave flag
+    let absentList = [];
+    try {
+      const [rows] = await pool.query(
+        `SELECT u.id, u.name, d.team_name AS department,
+                MAX(l.id IS NOT NULL) AS on_leave,
+                MAX(lt.type_name)     AS leave_type
+         FROM ${tbl('users')} u
+         LEFT JOIN ${tbl('employee_details')} ed ON ed.user_id = u.id
+         LEFT JOIN ${tbl('teams')} d ON d.id = ed.department_id
+         LEFT JOIN ${tbl('leaves')} l
+           ON l.user_id = u.id AND DATE(l.leave_date) = ? AND l.status = 'approved'
+         LEFT JOIN ${tbl('leave_types')} lt ON lt.id = l.leave_type_id
+         WHERE u.status = 'active'
+           AND u.id NOT IN (
+             SELECT DISTINCT user_id FROM ${tbl('attendances')} WHERE DATE(clock_in_time) = ?
+           )
+         GROUP BY u.id, u.name, d.team_name
+         ORDER BY on_leave ASC, u.name ASC
+         LIMIT 10`,
+        [today, today]
+      );
+      absentList = rows.map(r => ({
+        id: r.id,
+        name: r.name,
+        department: r.department,
+        onLeave: !!Number(r.on_leave),
+        leaveType: r.leave_type,
+      }));
+    } catch { }
+
     // Hours this month
     let monthHours = 0;
     try {
@@ -323,6 +354,7 @@ router.get('/today', requireAuth, async (req, res) => {
       },
       currentlyWorking,
       deptBreakdown,
+      absentList,
     };
 
     cache = { data, ts: Date.now() };
