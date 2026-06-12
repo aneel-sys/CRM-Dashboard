@@ -3,7 +3,10 @@ import { useOutletContext, useSearchParams } from 'react-router-dom';
 import {
   MdArrowBack, MdPeople, MdSchedule, MdFolderOpen, MdAttachMoney,
 } from 'react-icons/md';
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from 'recharts';
+import {
+  BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, PieChart, Pie, Cell,
+  AreaChart, Area, ReferenceLine,
+} from 'recharts';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
@@ -171,6 +174,7 @@ function ProjectDetail({ project, onBack }) {
   const [tasks, setTasks] = useState([]);
   const [taskFilter, setTaskFilter] = useState('all');
   const [loading, setLoading] = useState(true);
+  const [burnup, setBurnup] = useState([]);
 
   useEffect(() => {
     setLoading(true);
@@ -183,6 +187,12 @@ function ProjectDetail({ project, onBack }) {
     }).catch(err => toast(err.response?.data?.message || 'Failed to load project'))
       .finally(() => setLoading(false));
   }, [project.id, month, year]);
+
+  useEffect(() => {
+    api.get(`/projects/${project.id}/hours-timeline`)
+      .then(res => setBurnup(res.data.timeline || []))
+      .catch(() => setBurnup([]));
+  }, [project.id]);
 
   // Timeline
   const startDate = project.start_date ? new Date(project.start_date) : new Date(project.created_at);
@@ -434,6 +444,51 @@ function ProjectDetail({ project, onBack }) {
         <div className="card px-5 py-4">
           <p className="text-[11px] font-bold uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>Project Summary</p>
           <p className="text-sm" style={{ color: 'var(--text-secondary)', lineHeight: 1.75 }}>{project.summary}</p>
+        </div>
+      )}
+
+      {/* Hours burn-up — cumulative logged vs allocated */}
+      {burnup.length > 1 && (
+        <div className="card overflow-hidden">
+          <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="section-title">Hours Burn-Up</p>
+            <p className="section-sub">
+              Cumulative hours logged over time
+              {project.hours_allocated > 0 ? ` · dashed line = ${project.hours_allocated}h allocated` : ''}
+            </p>
+          </div>
+          <div className="px-5 py-4">
+            <ResponsiveContainer width="100%" height={200}>
+              <AreaChart data={burnup} margin={{ top: 8, right: 8, bottom: 0, left: -10 }}>
+                <defs>
+                  <linearGradient id="gradBurnup" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}   />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} tickFormatter={v => `${v}h`} />
+                <Tooltip
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    const d = payload[0].payload;
+                    return (
+                      <div className="card px-3 py-2 text-xs" style={{ boxShadow: 'var(--card-shadow-md)' }}>
+                        <p className="font-bold mb-1" style={{ color: 'var(--text)' }}>{label}</p>
+                        <p style={{ color: 'var(--primary)', margin: 0 }}>Total: <strong>{d.cumulative}h</strong></p>
+                        <p style={{ color: 'var(--text-muted)', margin: 0 }}>+{d.hours}h that day</p>
+                      </div>
+                    );
+                  }}
+                />
+                {project.hours_allocated > 0 && (
+                  <ReferenceLine y={Number(project.hours_allocated)} stroke="#E24B4A" strokeDasharray="5 4"
+                    label={{ value: `${project.hours_allocated}h allocated`, position: 'insideTopRight', fontSize: 10, fill: '#E24B4A' }} />
+                )}
+                <Area type="monotone" dataKey="cumulative" stroke="#1D9E75" strokeWidth={2} fill="url(#gradBurnup)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
         </div>
       )}
 

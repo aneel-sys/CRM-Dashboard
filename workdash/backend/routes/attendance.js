@@ -268,6 +268,54 @@ router.get('/trend', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/attendance/clockin-drift?days=30 — avg clock-in time per working day (IST)
+router.get('/clockin-drift', requireAuth, async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days) || 30, 90);
+    const settings = await getOfficeSettings();
+    const openDays = (settings.officeOpenDays || [1, 2, 3, 4, 5]).map(d => Number(d) === 7 ? 0 : Number(d));
+
+    let holidaySet = new Set();
+    try {
+      const [hrows] = await pool.query(
+        `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+         WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY) AND date <= CURDATE()`,
+        [days - 1]
+      );
+      holidaySet = new Set(hrows.map(r => r.d));
+    } catch {}
+
+    const [rows] = await pool.query(
+      `SELECT DATE_FORMAT(DATE(clock_in_time), '%Y-%m-%d') as date,
+              ROUND(AVG(TIME_TO_SEC(TIME(DATE_ADD(clock_in_time, INTERVAL 19800 SECOND)))) / 60) as avg_mins,
+              COUNT(DISTINCT user_id) as clockins
+       FROM ${tbl('attendances')}
+       WHERE DATE(clock_in_time) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+         AND DATE(clock_in_time) <= CURDATE()
+       GROUP BY DATE(clock_in_time)
+       ORDER BY date ASC`,
+      [days - 1]
+    );
+
+    const fmtMins = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const drift = rows
+      .filter(r => openDays.includes(new Date(`${r.date}T00:00:00Z`).getUTCDay()) && !holidaySet.has(r.date))
+      .map(r => ({
+        date: r.date,
+        label: new Date(`${r.date}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }),
+        avgMins: Number(r.avg_mins),
+        avgTime: fmtMins(Number(r.avg_mins)),
+        clockins: Number(r.clockins),
+      }));
+
+    const [oh, om] = settings.officeStart.split(':').map(Number);
+    res.json({ success: true, drift, officeStartMins: oh * 60 + om, officeStart: settings.officeStart });
+  } catch (err) {
+    console.error('Clock-in drift error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/attendance/late-offenders?days=30 — most frequently late employees
 router.get('/late-offenders', requireAuth, async (req, res) => {
   try {

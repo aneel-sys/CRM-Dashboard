@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
+import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell } from 'recharts';
 import { MdDownload, MdAvTimer, MdPeople, MdToday, MdList } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import DataTable from '../components/DataTable';
@@ -84,6 +85,29 @@ export default function Timings() {
     },
   ];
 
+  // Histogram of hours logged per person per day
+  const distData = (() => {
+    const byPersonDay = {};
+    (data?.logs || []).forEach(l => {
+      const k = `${l.user_id}:${l.log_date}`;
+      byPersonDay[k] = (byPersonDay[k] || 0) + (parseFloat(l.total_hours) || 0);
+    });
+    const buckets = [
+      { label: '<2h',   min: 0,  max: 2,        count: 0, color: '#E24B4A' },
+      { label: '2–4h',  min: 2,  max: 4,        count: 0, color: '#EF9F27' },
+      { label: '4–6h',  min: 4,  max: 6,        count: 0, color: '#EF9F27' },
+      { label: '6–8h',  min: 6,  max: 8,        count: 0, color: '#1D9E75' },
+      { label: '8–10h', min: 8,  max: 10,       count: 0, color: '#1D9E75' },
+      { label: '10h+',  min: 10, max: Infinity, count: 0, color: '#7C3AED' },
+    ];
+    Object.values(byPersonDay).forEach(h => {
+      const b = buckets.find(x => h >= x.min && h < x.max);
+      if (b) b.count++;
+    });
+    return buckets;
+  })();
+  const distTotal = distData.reduce((s, b) => s + b.count, 0);
+
   return (
     <div className="space-y-5 fade-up">
       {/* Filter */}
@@ -125,6 +149,42 @@ export default function Timings() {
           sub={summary.days ? `${summary.totalHours}h over ${summary.days} day${summary.days !== 1 ? 's' : ''} with logs` : undefined} />
         <StatCard title="Log Entries"    value={summary.totalEntries || 0}                icon={MdList}     color="#7C3AED" loading={loading}
           sub={summary.employees ? `by ${summary.employees} employee${summary.employees !== 1 ? 's' : ''}` : undefined} />
+      </div>
+
+      {/* Daily hours distribution */}
+      <div className="card overflow-hidden">
+        <div className="px-5 py-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          <p className="section-title">Daily Hours Distribution</p>
+          <p className="section-sub">
+            How much each person logged per day · {distTotal} person-day{distTotal !== 1 ? 's' : ''} in this period
+          </p>
+        </div>
+        <div className="px-5 py-4">
+          {loading ? (
+            <div className="skeleton h-40 rounded" />
+          ) : distTotal === 0 ? (
+            <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-sm">No time logs in this period</p>
+            </div>
+          ) : (
+            <ResponsiveContainer width="100%" height={170}>
+              <BarChart data={distData} margin={{ top: 18, right: 8, bottom: 0, left: -22 }}>
+                <XAxis dataKey="label" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                <Tooltip
+                  formatter={(v, n, { payload }) => [
+                    `${v} person-day${v !== 1 ? 's' : ''} (${distTotal > 0 ? Math.round((v / distTotal) * 100) : 0}%)`,
+                    payload.label,
+                  ]}
+                  cursor={{ fill: 'var(--bg)' }}
+                />
+                <Bar dataKey="count" radius={[4, 4, 0, 0]} maxBarSize={48}>
+                  {distData.map((b, i) => <Cell key={i} fill={b.color} />)}
+                </Bar>
+              </BarChart>
+            </ResponsiveContainer>
+          )}
+        </div>
       </div>
 
       {/* Table */}

@@ -2,6 +2,77 @@ const express = require('express');
 const router  = express.Router();
 const { pool, tbl } = require('../db/connection');
 const { requireAuth } = require('../middleware/auth');
+const { getOfficeSettings } = require('../db/officeSettings');
+
+// GET /api/hr/dept-comparison?days=30 — attendance %, punctuality %, avg hours per department
+router.get('/dept-comparison', requireAuth, async (req, res) => {
+  try {
+    const days = Math.min(parseInt(req.query.days) || 30, 90);
+    const settings = await getOfficeSettings();
+    const openDays = (settings.officeOpenDays || [1, 2, 3, 4, 5]).map(d => Number(d) === 7 ? 0 : Number(d));
+    const capMins = Math.round((settings.workHoursPerDay || 9) * 60);
+
+    let holidaySet = new Set();
+    try {
+      const [hrows] = await pool.query(
+        `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+         WHERE date >= DATE_SUB(CURDATE(), INTERVAL ? DAY) AND date <= CURDATE()`,
+        [days - 1]
+      );
+      holidaySet = new Set(hrows.map(r => r.d));
+    } catch {}
+
+    // Working days inside the window
+    let workingDays = 0;
+    const d = new Date();
+    for (let i = 0; i < days; i++) {
+      const ds = d.toISOString().slice(0, 10);
+      if (openDays.includes(d.getUTCDay()) && !holidaySet.has(ds)) workingDays++;
+      d.setUTCDate(d.getUTCDate() - 1);
+    }
+
+    const [rows] = await pool.query(
+      `SELECT d.id, d.team_name as department,
+              COUNT(DISTINCT u.id) as headcount,
+              COUNT(DISTINCT CASE WHEN a.id IS NOT NULL THEN CONCAT(a.user_id, ':', DATE(a.clock_in_time)) END) as present_days,
+              COUNT(DISTINCT CASE WHEN a.late = 'no' THEN CONCAT(a.user_id, ':', DATE(a.clock_in_time)) END) as ontime_days,
+              ROUND(SUM(CASE WHEN a.id IS NOT NULL THEN TIMESTAMPDIFF(MINUTE, a.clock_in_time,
+                CASE WHEN a.clock_out_time IS NOT NULL THEN a.clock_out_time
+                     WHEN DATE(a.clock_in_time) = UTC_DATE() THEN NOW()
+                     ELSE DATE_ADD(a.clock_in_time, INTERVAL ${capMins} MINUTE) END) ELSE 0 END) / 60, 1) as total_hours
+       FROM ${tbl('teams')} d
+       JOIN ${tbl('employee_details')} ed ON ed.department_id = d.id
+       JOIN ${tbl('users')} u ON u.id = ed.user_id AND u.status = 'active'
+       LEFT JOIN ${tbl('attendances')} a
+         ON a.user_id = u.id AND DATE(a.clock_in_time) >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+       GROUP BY d.id, d.team_name
+       ORDER BY d.team_name ASC`,
+      [days - 1]
+    );
+
+    const departments = rows
+      .filter(r => Number(r.headcount) > 0)
+      .map(r => {
+        const headcount = Number(r.headcount);
+        const presentDays = Number(r.present_days);
+        const possible = headcount * workingDays;
+        return {
+          department: r.department,
+          headcount,
+          presentDays,
+          possibleDays: possible,
+          attendancePct: possible > 0 ? Math.min(100, Math.round((presentDays / possible) * 100)) : 0,
+          punctualityPct: presentDays > 0 ? Math.round((Number(r.ontime_days) / presentDays) * 100) : 0,
+          avgHours: presentDays > 0 ? Math.round((parseFloat(r.total_hours) / presentDays) * 10) / 10 : 0,
+        };
+      });
+
+    res.json({ success: true, departments, days, workingDays });
+  } catch (err) {
+    console.error('Dept comparison error:', err.message);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
 
 // GET /api/hr/summary — KPI cards
 router.get('/summary', requireAuth, async (req, res) => {

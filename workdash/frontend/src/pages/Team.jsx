@@ -146,6 +146,22 @@ export default function Team() {
       render: v => <span className="font-bold" style={{ color: 'var(--info)' }}>{parseFloat(v || 0).toFixed(1)}h</span>,
     },
     {
+      key: 'spark', label: 'Last 10 Days',
+      render: v => {
+        if (!v?.length) return <span style={{ color: 'var(--text-muted)' }}>—</span>;
+        const SPARK = { P: '#1D9E75', L: '#EF9F27', A: '#E24B4A' };
+        const LABEL = { P: 'Present', L: 'Late', A: 'Absent' };
+        return (
+          <div className="flex items-center gap-[3px]">
+            {v.map(d => (
+              <span key={d.d} title={`${d.d} — ${LABEL[d.s]}`}
+                style={{ width: 7, height: 14, borderRadius: 2, background: SPARK[d.s], opacity: d.s === 'A' ? 0.75 : 1, display: 'inline-block' }} />
+            ))}
+          </div>
+        );
+      },
+    },
+    {
       key: 'attendance_pct', label: 'Attendance',
       render: (v, row) => <AttendanceBar pct={v || 0} days={row.present_days} total={workingDays} />,
     },

@@ -5,6 +5,7 @@ import {
 } from 'react-icons/md';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
+  LineChart, Line, ReferenceLine, Cell,
 } from 'recharts';
 import StatCard from '../components/StatCard';
 import DataTable from '../components/DataTable';
@@ -110,6 +111,8 @@ export default function Attendance() {
   const [offenders, setOffenders] = useState([]);
   const [offendersLoading, setOffendersLoading] = useState(true);
   const [trendDays, setTrendDays] = useState(30);
+  const [drift, setDrift] = useState({ drift: [], officeStartMins: 540, officeStart: '09:00' });
+  const [driftLoading, setDriftLoading] = useState(true);
 
   useEffect(() => {
     api.get('/attendance/departments')
@@ -128,6 +131,15 @@ export default function Attendance() {
       .then(res => setOffenders(res.data.offenders || []))
       .catch(() => {})
       .finally(() => setOffendersLoading(false));
+    setDriftLoading(true);
+    api.get(`/attendance/clockin-drift?days=${trendDays}`)
+      .then(res => setDrift({
+        drift: res.data.drift || [],
+        officeStartMins: res.data.officeStartMins ?? 540,
+        officeStart: res.data.officeStart || '09:00',
+      }))
+      .catch(() => {})
+      .finally(() => setDriftLoading(false));
   }, [refreshKey, trendDays]);
 
   const fetchData = () => {
@@ -263,6 +275,30 @@ export default function Attendance() {
     weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
   });
 
+  const fmtMins = m => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+  // Arrival rush curve — bucket the day's clock-ins into 15-minute slots (IST)
+  const rushData = (() => {
+    const buckets = {};
+    (data?.records || []).forEach(r => {
+      if (!r.clock_in_time) return;
+      const ist = new Date(new Date(r.clock_in_time).getTime() + 5.5 * 3600000);
+      const mins = ist.getUTCHours() * 60 + ist.getUTCMinutes();
+      const slot = Math.floor(mins / 15) * 15;
+      buckets[slot] = (buckets[slot] || 0) + 1;
+    });
+    const slots = Object.keys(buckets).map(Number).sort((a, b) => a - b);
+    if (!slots.length) return [];
+    const out = [];
+    for (let s = slots[0]; s <= slots[slots.length - 1]; s += 15) {
+      out.push({ slot: s, label: fmtMins(s), count: buckets[s] || 0 });
+    }
+    return out;
+  })();
+  const officeStartSlotLabel = rushData.find(
+    b => drift.officeStartMins >= b.slot && drift.officeStartMins < b.slot + 15
+  )?.label;
+
   return (
     <div className="space-y-5 fade-up">
       {/* Filter Bar */}
@@ -363,6 +399,91 @@ export default function Attendance() {
         </div>
         <div className="lg:col-span-2 h-full">
           <LateOffendersCard offenders={offenders} loading={offendersLoading} days={trendDays} />
+        </div>
+      </div>
+
+      {/* Clock-in drift + Arrival rush curve */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+        <div className="card overflow-hidden h-full flex flex-col lg:col-span-3">
+          <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="section-title">Average Clock-In Drift</p>
+            <p className="section-sub">
+              Company avg arrival time per working day · dashed line = office start ({drift.officeStart})
+            </p>
+          </div>
+          <div className="px-5 py-4 flex-1 flex flex-col justify-center">
+            {driftLoading ? (
+              <div className="skeleton h-44 rounded" />
+            ) : drift.drift.length === 0 ? (
+              <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No clock-in history yet</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={190} minHeight={190}>
+                <LineChart data={drift.drift} margin={{ top: 8, right: 8, bottom: 0, left: 4 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis
+                    domain={[dataMin => Math.floor((dataMin - 12) / 15) * 15, dataMax => Math.ceil((dataMax + 12) / 15) * 15]}
+                    tickFormatter={fmtMins}
+                    tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} width={42}
+                  />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="card px-3 py-2 text-xs" style={{ boxShadow: 'var(--card-shadow-md)' }}>
+                          <p className="font-bold mb-1" style={{ color: 'var(--text)' }}>{label}</p>
+                          <p style={{ color: 'var(--primary)', margin: 0 }}>Avg clock-in: <strong>{d.avgTime}</strong></p>
+                          <p style={{ color: 'var(--text-muted)', margin: 0 }}>{d.clockins} clock-ins</p>
+                        </div>
+                      );
+                    }}
+                  />
+                  <ReferenceLine y={drift.officeStartMins} stroke="#E24B4A" strokeDasharray="5 4"
+                    label={{ value: drift.officeStart, position: 'right', fontSize: 9, fill: '#E24B4A' }} />
+                  <Line type="monotone" dataKey="avgMins" stroke="var(--primary)" strokeWidth={2}
+                    dot={{ r: 2.5, fill: 'var(--primary)' }} activeDot={{ r: 4 }} />
+                </LineChart>
+              </ResponsiveContainer>
+            )}
+          </div>
+        </div>
+
+        <div className="card overflow-hidden h-full flex flex-col lg:col-span-2">
+          <div className="px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+            <p className="section-title">Arrival Rush</p>
+            <p className="section-sub">{dateLabel} · clock-ins per 15 min · green = before {drift.officeStart}</p>
+          </div>
+          <div className="px-5 py-4 flex-1 flex flex-col justify-center">
+            {loading ? (
+              <div className="skeleton h-44 rounded" />
+            ) : rushData.length === 0 ? (
+              <div className="text-center py-8" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No clock-ins on this date</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={190} minHeight={190}>
+                <BarChart data={rushData} margin={{ top: 8, right: 8, bottom: 0, left: -22 }}>
+                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} allowDecimals={false} />
+                  <Tooltip
+                    formatter={v => [`${v} clock-in${v !== 1 ? 's' : ''}`, '']}
+                    labelFormatter={l => `${l} – ${fmtMins((rushData.find(b => b.label === l)?.slot ?? 0) + 15)}`}
+                    cursor={{ fill: 'var(--bg)' }}
+                  />
+                  {officeStartSlotLabel && (
+                    <ReferenceLine x={officeStartSlotLabel} stroke="#E24B4A" strokeDasharray="5 4" />
+                  )}
+                  <Bar dataKey="count" radius={[3, 3, 0, 0]} maxBarSize={22}>
+                    {rushData.map((b, i) => (
+                      <Cell key={i} fill={b.slot + 15 <= drift.officeStartMins ? '#1D9E75' : '#EF9F27'} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </div>
         </div>
       </div>
 

@@ -314,6 +314,38 @@ router.get('/recent-activity', requireAuth, async (req, res) => {
   }
 });
 
+// GET /api/projects/:id/hours-timeline — cumulative logged hours over time (burn-up)
+router.get('/:id/hours-timeline', requireAuth, async (req, res) => {
+  try {
+    const { id } = req.params;
+    let rows = [];
+    try {
+      [rows] = await pool.query(
+        `SELECT DATE_FORMAT(DATE(start_time), '%Y-%m-%d') as date,
+                ROUND(SUM(total_hours), 1) as hours
+         FROM ${tbl('project_time_logs')}
+         WHERE project_id = ? AND start_time IS NOT NULL
+         GROUP BY DATE(start_time)
+         ORDER BY date ASC`,
+        [id]
+      );
+    } catch {}
+    let cum = 0;
+    const timeline = rows.map(r => {
+      cum += parseFloat(r.hours) || 0;
+      return {
+        date: r.date,
+        label: new Date(`${r.date}T00:00:00Z`).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', timeZone: 'UTC' }),
+        hours: parseFloat(r.hours) || 0,
+        cumulative: Math.round(cum * 10) / 10,
+      };
+    });
+    res.json({ success: true, timeline });
+  } catch (err) {
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 // GET /api/projects/:id
 router.get('/:id', requireAuth, async (req, res) => {
   try {

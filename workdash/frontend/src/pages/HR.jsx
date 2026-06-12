@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Cell,
-  PieChart, Pie,
+  PieChart, Pie, Legend,
 } from 'recharts';
 import {
   MdPeople, MdPersonAdd, MdExitToApp, MdSchedule,
@@ -107,6 +107,9 @@ export default function HR() {
   const [leaveUsage,   setLeaveUsage]   = useState({ employees: [], withLeave: 0 });
   const [leavePeriod,  setLeavePeriod]  = useState('year');
   const [leaveLoading, setLeaveLoading] = useState(false);
+  const [deptComp,     setDeptComp]     = useState({ departments: [], days: 30 });
+  const [weekdayAbs,   setWeekdayAbs]   = useState([]);
+  const [vizLoading,   setVizLoading]   = useState(true);
   const [departments,  setDepartments]  = useState([]);
   const [joiners,      setJoiners]      = useState([]);
   const [expiring,     setExpiring]     = useState([]);
@@ -145,6 +148,34 @@ export default function HR() {
       setExpiring(e.data.expiring || []);
     }).catch(() => toast('Failed to load HR data'))
       .finally(() => setSummaryLoading(false));
+  }, [refreshKey]);
+
+  // Dept comparison + weekday absence pattern (90 days, weekends/holidays excluded by the API)
+  useEffect(() => {
+    setVizLoading(true);
+    Promise.all([
+      api.get('/hr/dept-comparison?days=30'),
+      api.get('/attendance/trend?days=90'),
+    ]).then(([dc, tr]) => {
+      setDeptComp({ departments: dc.data.departments || [], days: dc.data.days || 30 });
+      const dayAgg = {}; // weekday -> { sum, n }
+      (tr.data.trend || []).forEach(t => {
+        const wd = new Date(`${t.date}T00:00:00Z`).getUTCDay();
+        if (!dayAgg[wd]) dayAgg[wd] = { sum: 0, n: 0 };
+        dayAgg[wd].sum += t.absent;
+        dayAgg[wd].n += 1;
+      });
+      const WD = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      const order = [1, 2, 3, 4, 5, 6, 0]; // Mon-first
+      setWeekdayAbs(order
+        .filter(wd => dayAgg[wd]?.n > 0)
+        .map(wd => ({
+          day: WD[wd],
+          avgAbsent: Math.round((dayAgg[wd].sum / dayAgg[wd].n) * 10) / 10,
+          samples: dayAgg[wd].n,
+        })));
+    }).catch(() => {})
+      .finally(() => setVizLoading(false));
   }, [refreshKey]);
 
   // Refetch leave usage when the period toggle changes (skip initial mount — covered above)
@@ -535,6 +566,83 @@ export default function HR() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Dept Comparison + Weekday Absence Pattern ──────────────────── */}
+      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+
+        <div className="lg:col-span-3">
+          <SectionCard
+            title="Department Comparison"
+            subtitle={`Last ${deptComp.days} days · attendance vs punctuality · avg hours in tooltip`}
+          >
+            {vizLoading ? (
+              <div className="skeleton rounded" style={{ height: 230 }} />
+            ) : deptComp.departments.length === 0 ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No department data</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={Math.max(220, deptComp.departments.length * 44)}>
+                <BarChart data={deptComp.departments} layout="vertical" margin={{ top: 0, right: 28, bottom: 0, left: 0 }} barGap={2}>
+                  <XAxis type="number" domain={[0, 100]} tickFormatter={v => `${v}%`} tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis type="category" dataKey="department" tick={{ fontSize: 11, fill: 'var(--text)' }} axisLine={false} tickLine={false}
+                    width={Math.min(180, Math.max(90, deptComp.departments.reduce((m, d) => Math.max(m, (d.department || '').length), 0) * 7))} />
+                  <Tooltip
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const d = payload[0].payload;
+                      return (
+                        <div className="card px-3 py-2 text-xs" style={{ boxShadow: 'var(--card-shadow-md)' }}>
+                          <p className="font-bold mb-1" style={{ color: 'var(--text)' }}>{label} · {d.headcount} people</p>
+                          <p style={{ color: '#1D9E75', margin: 0 }}>Attendance: <strong>{d.attendancePct}%</strong> ({d.presentDays}/{d.possibleDays} person-days)</p>
+                          <p style={{ color: '#378ADD', margin: 0 }}>Punctuality: <strong>{d.punctualityPct}%</strong> of days present</p>
+                          <p style={{ color: 'var(--text-muted)', margin: 0 }}>Avg {d.avgHours}h per day present</p>
+                        </div>
+                      );
+                    }}
+                    cursor={{ fill: 'var(--bg)' }}
+                  />
+                  <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11 }} />
+                  <Bar dataKey="attendancePct"  name="Attendance %"  fill="#1D9E75" radius={[0, 3, 3, 0]} maxBarSize={12} />
+                  <Bar dataKey="punctualityPct" name="Punctuality %" fill="#378ADD" radius={[0, 3, 3, 0]} maxBarSize={12} />
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </SectionCard>
+        </div>
+
+        <div className="lg:col-span-2">
+          <SectionCard
+            title="Absence by Weekday"
+            subtitle="Avg absences per weekday · last 90 days · working days only"
+          >
+            {vizLoading ? (
+              <div className="skeleton rounded" style={{ height: 230 }} />
+            ) : weekdayAbs.length === 0 ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">Not enough attendance history</p>
+              </div>
+            ) : (
+              <ResponsiveContainer width="100%" height={230}>
+                <BarChart data={weekdayAbs} margin={{ top: 18, right: 8, bottom: 0, left: -22 }}>
+                  <XAxis dataKey="day" tick={{ fontSize: 11, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                  <Tooltip
+                    formatter={(v, n, { payload }) => [`${v} avg absent (${payload.samples} ${payload.day}s sampled)`, '']}
+                    cursor={{ fill: 'var(--bg)' }}
+                  />
+                  <Bar dataKey="avgAbsent" radius={[4, 4, 0, 0]} maxBarSize={34}>
+                    {weekdayAbs.map((d, i) => {
+                      const max = Math.max(...weekdayAbs.map(x => x.avgAbsent), 1);
+                      return <Cell key={i} fill={d.avgAbsent >= max * 0.85 ? '#E24B4A' : d.avgAbsent >= max * 0.6 ? '#EF9F27' : '#1D9E75'} />;
+                    })}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            )}
+          </SectionCard>
+        </div>
       </div>
 
       {/* ── New Joiners + Expiring ─────────────────────────────────────── */}

@@ -124,6 +124,39 @@ router.get('/', requireAuth, async (req, res) => {
     const holidays = await getHolidays(year, month);
     const workingDays = getWorkingDays(year, month, holidays, officeDays);
 
+    // Sparkline: per-user status over the last 10 working days (always relative to today)
+    let sparkDays = [];
+    let sparkMap = {};
+    try {
+      let recentHolidays = new Set();
+      try {
+        const [hrows] = await pool.query(
+          `SELECT DATE_FORMAT(date, '%Y-%m-%d') as d FROM ${tbl('holidays')}
+           WHERE date >= DATE_SUB(CURDATE(), INTERVAL 25 DAY) AND date <= CURDATE()`
+        );
+        recentHolidays = new Set(hrows.map(r => r.d));
+      } catch {}
+      const cursor = new Date();
+      for (let guard = 0; sparkDays.length < 10 && guard < 25; guard++) {
+        const ds = cursor.toISOString().slice(0, 10);
+        if (officeDays.includes(cursor.getUTCDay()) && !recentHolidays.has(ds)) sparkDays.push(ds);
+        cursor.setUTCDate(cursor.getUTCDate() - 1);
+      }
+      sparkDays.reverse(); // oldest → newest
+      const [arows] = await pool.query(
+        `SELECT user_id, DATE_FORMAT(DATE(clock_in_time), '%Y-%m-%d') as d,
+                MAX(late = 'yes') as was_late
+         FROM ${tbl('attendances')}
+         WHERE DATE(clock_in_time) >= ?
+         GROUP BY user_id, DATE(clock_in_time)`,
+        [sparkDays[0]]
+      );
+      arows.forEach(r => {
+        if (!sparkMap[r.user_id]) sparkMap[r.user_id] = {};
+        sparkMap[r.user_id][r.d] = r.was_late ? 'L' : 'P';
+      });
+    } catch {}
+
     const result = employees.map(e => ({
       ...e,
       month_hours: hoursMap[e.id] || 0,
@@ -133,9 +166,10 @@ router.get('/', requireAuth, async (req, res) => {
       attendance_pct: workingDays
         ? Math.round((e.present_days / workingDays) * 100)
         : 0,
+      spark: sparkDays.map(ds => ({ d: ds, s: sparkMap[e.id]?.[ds] || 'A' })),
     }));
 
-    res.json({ success: true, employees: result, month, year, workingDays });
+    res.json({ success: true, employees: result, month, year, workingDays, sparkDays });
   } catch (err) {
     console.error('Team error:', err.message);
     res.status(500).json({ success: false, message: err.message });
