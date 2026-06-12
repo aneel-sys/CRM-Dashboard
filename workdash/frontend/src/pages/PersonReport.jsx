@@ -445,23 +445,39 @@ export default function PersonReport() {
                 </div>
 
                 {/* 2x2 grid */}
-                <div className="grid grid-cols-2 gap-2">
-                  {[
-                    { label: 'Present', value: stats.presentDays, base: stats.workingDays, bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
-                    { label: 'Late',    value: stats.lateDays,    base: stats.presentDays, bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
-                    { label: 'Absent',  value: stats.absentDays,  base: stats.workingDays, bg: '#FEF2F2', color: '#DC2626', border: '#FECACA' },
-                    { label: 'Leave',   value: stats.leaveDays,   base: stats.workingDays, bg: '#EFF6FF', color: '#2563EB', border: '#BFDBFE' },
-                  ].map(item => (
-                    <div key={item.label} className="rounded-lg p-3 text-center" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
-                      <p className="text-[22px] font-bold" style={{ color: item.color }}>
-                        {item.value ?? '—'}
-                        {item.base > 0 && item.value !== undefined && (
-                          <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.55 }}>/{item.base}</span>
-                        )}
-                      </p>
-                      <p className="text-[11px] font-semibold mt-0.5" style={{ color: item.color }}>{item.label}</p>
-                    </div>
-                  ))}
+                <div className="space-y-2">
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: 'Present', value: stats.presentDays, base: stats.workingDays, bg: '#F0FDF4', color: '#15803D', border: '#BBF7D0' },
+                      { label: 'Late',    value: stats.lateDays,    base: stats.presentDays, bg: '#FFFBEB', color: '#D97706', border: '#FDE68A' },
+                    ].map(item => (
+                      <div key={item.label} className="rounded-lg p-3 text-center" style={{ background: item.bg, border: `1px solid ${item.border}` }}>
+                        <p className="text-[22px] font-bold" style={{ color: item.color }}>
+                          {item.value ?? '—'}
+                          {item.base > 0 && item.value !== undefined && (
+                            <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.55 }}>/{item.base}</span>
+                          )}
+                        </p>
+                        <p className="text-[11px] font-semibold mt-0.5" style={{ color: item.color }}>{item.label}</p>
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Away = approved leave + unexplained absence, merged with breakdown */}
+                  <div className="rounded-lg p-3 text-center" style={{ background: '#FEF2F2', border: '1px solid #FECACA' }}>
+                    <p className="text-[22px] font-bold" style={{ color: '#DC2626' }}>
+                      {(stats.absentDays ?? 0) + (stats.leaveDays ?? 0)}
+                      {stats.workingDays > 0 && (
+                        <span style={{ fontSize: 13, fontWeight: 600, opacity: 0.55 }}>/{stats.workingDays}</span>
+                      )}
+                    </p>
+                    <p className="text-[11px] font-semibold mt-0.5" style={{ color: '#DC2626' }}>Away</p>
+                    <p className="text-[11px] mt-1" style={{ color: 'var(--text-secondary)' }}>
+                      <span style={{ color: '#2563EB', fontWeight: 700 }}>{stats.leaveDays ?? 0}</span> approved leave
+                      {' · '}
+                      <span style={{ color: '#DC2626', fontWeight: 700 }}>{stats.absentDays ?? 0}</span> no record
+                    </p>
+                  </div>
                 </div>
 
                 {/* Leave Balance */}
