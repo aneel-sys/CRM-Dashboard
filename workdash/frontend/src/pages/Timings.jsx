@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useOutletContext } from 'react-router-dom';
-import { MdFilterList, MdDownload, MdAvTimer, MdPeople, MdToday, MdList } from 'react-icons/md';
+import { MdDownload, MdAvTimer, MdPeople, MdToday, MdList } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
@@ -39,7 +39,8 @@ export default function Timings() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, [refreshKey]);
+  // Auto-apply: refetch whenever any filter changes
+  useEffect(() => { fetchData(); }, [refreshKey, from, to, userId, projectId]);
 
   const handleExport = () => {
     const p = new URLSearchParams({ from, to });
@@ -109,9 +110,6 @@ export default function Timings() {
             {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
           </select>
         </div>
-        <button onClick={fetchData} className="btn btn-primary">
-          <MdFilterList size={15} /> Apply
-        </button>
         <button onClick={handleExport} className="btn btn-secondary ml-auto">
           <MdDownload size={15} /> Export CSV
         </button>

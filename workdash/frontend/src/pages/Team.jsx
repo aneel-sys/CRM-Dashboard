@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import { MdSearch, MdDownload, MdArrowForward } from 'react-icons/md';
 import DataTable from '../components/DataTable';
@@ -74,7 +74,16 @@ export default function Team() {
       .finally(() => setLoading(false));
   };
 
-  useEffect(() => { fetchData(); }, [refreshKey]);
+  // Auto-apply: dropdowns fetch instantly, search debounced 300ms
+  useEffect(() => { fetchData(); }, [refreshKey, deptId, month, year]);
+  const searchDebounce = useRef(null);
+  const searchMounted = useRef(false);
+  useEffect(() => {
+    if (!searchMounted.current) { searchMounted.current = true; return; }
+    clearTimeout(searchDebounce.current);
+    searchDebounce.current = setTimeout(fetchData, 300);
+    return () => clearTimeout(searchDebounce.current);
+  }, [search]);
 
   const handleExport = () => {
     const p = new URLSearchParams({ month, year });
@@ -87,7 +96,12 @@ export default function Team() {
     {
       key: 'name', label: 'Employee',
       render: (v, row) => (
-        <div className="flex items-center gap-2.5">
+        <div
+          className="flex items-center gap-2.5"
+          onClick={() => navigate(`/person?id=${row.id}`)}
+          style={{ cursor: 'pointer' }}
+          title="View person report"
+        >
           <Avatar name={v} />
           <div>
             <p className="font-semibold text-[13px]" style={{ color: 'var(--text)' }}>{v}</p>
@@ -213,7 +227,6 @@ export default function Team() {
             {Array.from({ length: new Date().getFullYear() - 2022 }, (_, i) => 2023 + i).map(y => <option key={y}>{y}</option>)}
           </select>
         </div>
-        <button onClick={fetchData} className="btn btn-primary">Apply</button>
         <button onClick={handleExport} className="btn btn-secondary ml-auto">
           <MdDownload size={15} /> Export CSV
         </button>

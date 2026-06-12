@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useOutletContext, useSearchParams, useNavigate } from 'react-router-dom';
 import {
-  MdFilterList, MdDownload, MdPeople, MdAccessTime, MdPersonOff, MdCheckCircle,
+  MdDownload, MdPeople, MdAccessTime, MdPersonOff, MdCheckCircle,
 } from 'react-icons/md';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, Legend,
@@ -14,11 +14,12 @@ import { fmtTime } from '../utils/time';
 import { useSettings } from '../context/SettingsContext';
 import { useSSE } from '../context/SSEContext';
 
+// Same color language as the stat cards: On Time green · Late amber · Absent red
 function StatusPill({ status }) {
   const map = {
     'On Time': 'pill pill-green',
-    'Late':    'pill pill-red',
-    'Absent':  'pill pill-gray',
+    'Late':    'pill pill-amber',
+    'Absent':  'pill pill-red',
   };
   return <span className={map[status] || 'pill pill-gray'}>{status}</span>;
 }
@@ -88,6 +89,7 @@ function LateOffendersCard({ offenders, loading, days }) {
 export default function Attendance() {
   const { refreshKey } = useOutletContext();
   const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const toast = useToast();
   const today = new Date().toISOString().slice(0, 10);
   const sseTick = useSSE('tick');
@@ -99,6 +101,7 @@ export default function Attendance() {
   const [deptId, setDeptId] = useState(() => searchParams.get('dept') || '');
   // Pre-apply filters from URL params (e.g. heatmap cell click, KPI card click)
   const [status, setStatus] = useState(() => searchParams.get('status') || '');
+  const [search, setSearch] = useState('');
   const [departments, setDepartments] = useState([]);
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -138,8 +141,8 @@ export default function Attendance() {
       .finally(() => setLoading(false));
   };
 
-  // Fetch on mount (picks up URL status param) and on manual refresh
-  useEffect(() => { fetchData(); }, [refreshKey]);
+  // Auto-apply: refetch whenever any filter changes (also picks up URL params on mount)
+  useEffect(() => { fetchData(); }, [refreshKey, date, deptId, status]);
 
   // SSE tick — silently re-fetch when viewing today's data
   useEffect(() => {
@@ -187,8 +190,14 @@ export default function Attendance() {
     {
       key: 'name', label: 'Employee',
       render: (v, row) => (
-        <div>
-          <p className="font-semibold" style={{ color: 'var(--text)' }}>{v}</p>
+        <div
+          onClick={() => navigate(`/person?id=${row.id}`)}
+          style={{ cursor: 'pointer' }}
+          title="View person report"
+          onMouseEnter={e => e.currentTarget.firstChild.style.color = 'var(--primary)'}
+          onMouseLeave={e => e.currentTarget.firstChild.style.color = 'var(--text)'}
+        >
+          <p className="font-semibold" style={{ color: 'var(--text)', transition: 'color 0.12s' }}>{v}</p>
           <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{row.department}</p>
         </div>
       ),
@@ -197,7 +206,7 @@ export default function Attendance() {
     {
       key: 'clock_in_time', label: 'Clock In',
       render: (v, row) => (
-        <span className={`font-semibold ${row.attendance_status === 'Late' ? 'text-red-500' : ''}`}>
+        <span className="font-semibold" style={{ color: row.attendance_status === 'Late' ? '#D97706' : undefined }}>
           {fmt(v)}
         </span>
       ),
@@ -246,7 +255,13 @@ export default function Attendance() {
     },
   ];
 
-  const tableData = (data?.records || []).map((r, i) => ({ ...r, idx: i + 1 }));
+  const tableData = (data?.records || [])
+    .filter(r => !search || (r.name || '').toLowerCase().includes(search.toLowerCase()))
+    .map((r, i) => ({ ...r, idx: i + 1 }));
+
+  const dateLabel = new Date(`${date}T00:00:00`).toLocaleDateString('en-GB', {
+    weekday: 'short', day: '2-digit', month: 'short', year: 'numeric',
+  });
 
   return (
     <div className="space-y-5 fade-up">
@@ -272,9 +287,17 @@ export default function Attendance() {
             <option value="Absent">Absent</option>
           </select>
         </div>
-        <button onClick={fetchData} className="btn btn-primary">
-          <MdFilterList size={15} /> Apply Filters
-        </button>
+        <div>
+          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Search</label>
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Employee name…"
+            className="form-input"
+            style={{ minWidth: 170 }}
+          />
+        </div>
         <button onClick={handleExport} className="btn btn-secondary ml-auto">
           <MdDownload size={15} /> Export CSV
         </button>
@@ -349,8 +372,9 @@ export default function Attendance() {
           <div>
             <p className="section-title">Attendance Log</p>
             <p className="section-sub">
-              {date} · {tableData.length} record{tableData.length !== 1 ? 's' : ''}
+              {dateLabel} · {tableData.length} record{tableData.length !== 1 ? 's' : ''}
               {status ? ` · Filtered: ${status}` : ''}
+              {search ? ` · Search: "${search}"` : ''}
             </p>
           </div>
         </div>

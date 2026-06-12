@@ -232,6 +232,7 @@ export default function PersonReport() {
       .finally(() => setLoading(false));
   };
 
+  // Auto-load: employee, month, or year change reloads the report instantly
   useEffect(() => {
     if (selectedId) {
       loadReport();
@@ -239,7 +240,7 @@ export default function PersonReport() {
         .then(res => setLeaveBalance(res.data.leaveBalance || []))
         .catch(() => setLeaveBalance([]));
     }
-  }, [selectedId, refreshKey]);
+  }, [selectedId, month, year, refreshKey]);
 
   const stats = report?.stats || {};
   const emp   = report?.employee || {};
@@ -280,7 +281,6 @@ export default function PersonReport() {
             {Array.from({ length: new Date().getFullYear() - 2022 }, (_, i) => 2023 + i).map(y => <option key={y}>{y}</option>)}
           </select>
         </div>
-        <button onClick={loadReport} className="btn btn-primary">Load Report</button>
       </div>
 
       {!selectedId ? (
