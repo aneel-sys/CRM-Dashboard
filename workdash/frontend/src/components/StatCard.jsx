@@ -20,25 +20,28 @@ function DeltaChip({ diff, invert }) {
   );
 }
 
-export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E75', accent, loading, delta }) {
+export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E75', accent, loading, delta, sparkline }) {
   const accentColor = accent || color;
 
   if (loading) {
     return (
-      <div className="card p-5 fade-up">
+      <div className="stat-card-enterprise fade-up" style={{ borderTop: `3px solid ${accentColor}` }}>
         <div className="flex items-center justify-between mb-4">
           <div className="skeleton h-3 w-28 rounded" />
           <div className="skeleton h-9 w-9 rounded-lg" />
         </div>
         <div className="skeleton h-8 w-20 rounded mb-2" />
         <div className="skeleton h-3 w-24 rounded" />
+        <div style={{ marginTop: 'auto', paddingTop: 12 }}>
+          <div className="skeleton h-8 w-full rounded" />
+        </div>
       </div>
     );
   }
 
   return (
     <div
-      className="card p-5 fade-up hover:shadow-md transition-shadow duration-200 relative overflow-hidden"
+      className="stat-card-enterprise fade-up"
       style={{ borderTop: `3px solid ${accentColor}` }}
     >
       <div className="flex items-start justify-between mb-3">
@@ -65,6 +68,14 @@ export default function StatCard({ title, value, sub, icon: Icon, color = '#1D9E
       {sub && (
         <p className="text-xs" style={{ color: 'var(--text-muted)' }}>{sub}</p>
       )}
+
+      {/* Optional sparkline footer */}
+      {sparkline && (
+        <div className="sparkline-footer">
+          {sparkline}
+        </div>
+      )}
     </div>
   );
 }
+

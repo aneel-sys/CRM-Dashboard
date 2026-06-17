@@ -369,3 +369,280 @@ input:focus-visible, select:focus-visible, button:focus-visible {
 .dark .mode-card--custom.mode-card--active {
   background: linear-gradient(135deg, rgba(124,58,237,0.1) 0%, rgba(124,58,237,0.03) 100%);
 }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ENTERPRISE LAYOUT SYSTEM
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── Grid Equal Row — forces all children to match tallest sibling ─── */
+.grid-equal-row {
+  display: grid;
+  gap: 16px;
+  align-items: stretch;
+}
+.grid-equal-row > * {
+  min-height: 0;
+}
+.grid-equal-row.cols-2 { grid-template-columns: repeat(2, 1fr); }
+.grid-equal-row.cols-3 { grid-template-columns: repeat(3, 1fr); }
+.grid-equal-row.cols-5-3-2 { grid-template-columns: 3fr 2fr; }
+@media (max-width: 768px) {
+  .grid-equal-row.cols-2,
+  .grid-equal-row.cols-3,
+  .grid-equal-row.cols-5-3-2 { grid-template-columns: 1fr; }
+}
+@media (min-width: 769px) and (max-width: 1024px) {
+  .grid-equal-row.cols-3 { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ── Section Card (flex column fill) ─────────────────────────────── */
+.section-card {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.section-card:hover {
+  box-shadow: var(--card-shadow-md);
+}
+.section-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.section-card__body {
+  padding: 20px;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+/* ── Scrollable List — constrained with fade mask ────────────────── */
+.scrollable-list {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;
+  max-height: 340px;
+  position: relative;
+  scrollbar-width: thin;
+}
+.scrollable-list-wrapper {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+.scrollable-list-wrapper::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 32px;
+  background: linear-gradient(transparent, var(--card));
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+.scrollable-list-wrapper.has-overflow::after {
+  opacity: 1;
+}
+
+/* ── Stat Card — enterprise normalization ────────────────────────── */
+.stat-card-enterprise {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  box-shadow: var(--card-shadow);
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  position: relative;
+  overflow: hidden;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.stat-card-enterprise:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.08), 0 2px 8px rgba(0,0,0,0.04);
+}
+.dark .stat-card-enterprise:hover {
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.2);
+}
+.stat-card-enterprise .sparkline-footer {
+  margin-top: auto;
+  padding-top: 12px;
+  border-top: 1px solid var(--border);
+  opacity: 0.7;
+  transition: opacity 0.2s;
+}
+.stat-card-enterprise:hover .sparkline-footer {
+  opacity: 1;
+}
+
+/* ── Department Table — enterprise styling ───────────────────────── */
+.dept-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 13px;
+}
+.dept-table thead th {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0 0 10px;
+  position: sticky;
+  top: 0;
+  background: var(--card);
+  z-index: 1;
+}
+.dept-table tbody tr {
+  transition: background 0.12s;
+  cursor: pointer;
+}
+.dept-table tbody tr:hover {
+  background: var(--bg);
+}
+.dept-table tbody td {
+  padding: 9px 0;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 13px;
+}
+.dept-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Stacked Bar (dept breakdown) ────────────────────────────────── */
+.stacked-bar {
+  display: flex;
+  height: 8px;
+  border-radius: 99px;
+  overflow: hidden;
+  background: var(--bg);
+}
+.stacked-bar__seg {
+  height: 100%;
+  transition: width 0.5s ease;
+  min-width: 2px;
+}
+.stacked-bar__seg:first-child { border-radius: 99px 0 0 99px; }
+.stacked-bar__seg:last-child  { border-radius: 0 99px 99px 0; }
+.stacked-bar__seg:only-child  { border-radius: 99px; }
+
+/* ── Avatar Initial Circle ───────────────────────────────────────── */
+.avatar-initial {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+
+/* ── Delay Severity Pills ────────────────────────────────────────── */
+.delay-pill { 
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 2px 10px; border-radius: 99px;
+  font-size: 11px; font-weight: 700; 
+}
+.delay-mild    { background: #FEF3C7; color: #D97706; }
+.delay-moderate { background: #FFEDD5; color: #EA580C; }
+.delay-severe  { background: #FEE2E2; color: #DC2626; }
+.dark .delay-mild    { background: rgba(217,119,6,0.15); }
+.dark .delay-moderate { background: rgba(234,88,12,0.15); }
+.dark .delay-severe  { background: rgba(220,38,38,0.15); }
+
+/* ── Delay Bar (mini visualization) ──────────────────────────────── */
+.delay-bar {
+  height: 3px;
+  border-radius: 99px;
+  background: var(--bg);
+  width: 48px;
+  overflow: hidden;
+}
+.delay-bar__fill {
+  height: 100%;
+  border-radius: 99px;
+  transition: width 0.4s ease;
+}
+
+/* ── Donut Center Label ──────────────────────────────────────────── */
+.donut-center {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.donut-center__value {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1;
+  margin: 0;
+}
+.donut-center__label {
+  font-size: 10px;
+  color: var(--text-muted);
+  margin: 2px 0 0;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-weight: 600;
+}
+
+/* ── Staggered Entry Animation ───────────────────────────────────── */
+.stagger-enter > * {
+  animation: fadeUp 0.35s ease-out both;
+}
+.stagger-enter > *:nth-child(1) { animation-delay: 0ms; }
+.stagger-enter > *:nth-child(2) { animation-delay: 60ms; }
+.stagger-enter > *:nth-child(3) { animation-delay: 120ms; }
+.stagger-enter > *:nth-child(4) { animation-delay: 180ms; }
+.stagger-enter > *:nth-child(5) { animation-delay: 240ms; }
+.stagger-enter > *:nth-child(6) { animation-delay: 300ms; }
+.stagger-enter > *:nth-child(7) { animation-delay: 360ms; }
+.stagger-enter > *:nth-child(8) { animation-delay: 420ms; }
+
+/* ── Donut rotation on mount ─────────────────────────────────────── */
+@keyframes donutSpin {
+  from { transform: rotate(-90deg); opacity: 0; }
+  to   { transform: rotate(0deg);   opacity: 1; }
+}
+.donut-animate {
+  animation: donutSpin 0.6s ease-out both;
+}
+
+/* ── Reference line label ────────────────────────────────────────── */
+.ref-line-label {
+  font-size: 9px;
+  font-weight: 700;
+  fill: var(--text-muted);
+}
+
+/* ── Dark mode for new classes ───────────────────────────────────── */
+.dark .section-card { background: var(--card); border-color: var(--border); }
+.dark .section-card:hover { box-shadow: 0 4px 12px rgba(0,0,0,0.4); }
+.dark .scrollable-list-wrapper::after { background: linear-gradient(transparent, var(--card)); }
+.dark .dept-table thead th { background: var(--card); }
+.dark .stacked-bar { background: rgba(255,255,255,0.06); }

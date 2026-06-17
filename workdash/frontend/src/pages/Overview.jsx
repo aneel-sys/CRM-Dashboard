@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LabelList,
   PieChart, Pie, Cell, Legend,
-  AreaChart, Area,
+  AreaChart, Area, ReferenceLine,
 } from 'recharts';
 import {
   MdPeople, MdAccessTime, MdPersonOff, MdAvTimer, MdBeachAccess, MdWork, MdSignalWifi4Bar,
@@ -21,6 +21,31 @@ import { useAuth } from '../context/AuthContext';
 // Present green · On Leave purple (matches leave color everywhere) · Absent red
 const DONUT_COLORS  = ['#1D9E75', '#8B5CF6', '#E24B4A', '#EF9F27'];
 const HEALTH_COLORS = { onTrack: '#1D9E75', atRisk: '#EF9F27', overdue: '#E24B4A' };
+
+// Avatar color palette — deterministic by name hash
+const AVATAR_COLORS = [
+  '#1D9E75', '#378ADD', '#8B5CF6', '#EF9F27', '#E24B4A',
+  '#06B6D4', '#F59E0B', '#EC4899', '#14B8A6', '#6366F1',
+];
+function avatarColor(name) {
+  let h = 0;
+  for (let i = 0; i < (name || '').length; i++) h = ((h << 5) - h + name.charCodeAt(i)) | 0;
+  return AVATAR_COLORS[Math.abs(h) % AVATAR_COLORS.length];
+}
+function getInitials(name) {
+  if (!name) return '?';
+  const parts = name.trim().split(/\s+/);
+  return parts.length >= 2
+    ? (parts[0][0] + parts[parts.length - 1][0]).toUpperCase()
+    : name.slice(0, 2).toUpperCase();
+}
+
+// Delay severity helper
+function delaySeverity(mins) {
+  if (mins <= 15) return { cls: 'delay-mild', color: '#D97706' };
+  if (mins <= 30) return { cls: 'delay-moderate', color: '#EA580C' };
+  return { cls: 'delay-severe', color: '#DC2626' };
+}
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
@@ -108,34 +133,54 @@ function CommandCenter({ mode, onModeChange, customDate, onCustomDateChange }) {
   );
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────
+// ─── Section Card (new enterprise version) ─────────────────────────────────
 
-function SectionCard({ title, subtitle, children, action, className = '' }) {
+function SectionCard({ title, subtitle, children, action, className = '', scrollable = false, maxScrollHeight = 340 }) {
+  const bodyRef = useRef(null);
+  const [hasOverflow, setHasOverflow] = useState(false);
+
+  useEffect(() => {
+    if (!scrollable || !bodyRef.current) return;
+    const el = bodyRef.current;
+    setHasOverflow(el.scrollHeight > el.clientHeight);
+  });
+
   return (
-    <div className={`card overflow-hidden h-full flex flex-col ${className}`}>
-      <div className="flex items-center justify-between px-5 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
+    <div className={`section-card ${className}`}>
+      <div className="section-card__header">
         <div>
           <p className="section-title">{title}</p>
           {subtitle && <p className="section-sub">{subtitle}</p>}
         </div>
         {action}
       </div>
-      <div className="p-5 flex-1 flex flex-col">{children}</div>
+      {scrollable ? (
+        <div className="section-card__body">
+          <div className={`scrollable-list-wrapper ${hasOverflow ? 'has-overflow' : ''}`}>
+            <div ref={bodyRef} className="scrollable-list" style={{ maxHeight: maxScrollHeight }}>
+              {children}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="section-card__body">{children}</div>
+      )}
     </div>
   );
 }
 
+// ─── Department Row with stacked bar ────────────────────────────────────────
+
 function DeptRow({ dept, onClick }) {
   const pct   = dept.total > 0 ? Math.round((dept.present / dept.total) * 100) : 0;
   const color = pct >= 80 ? 'var(--primary)' : pct >= 60 ? 'var(--warning)' : 'var(--danger)';
+  const presentPct = dept.total > 0 ? (dept.present / dept.total) * 100 : 0;
+  const latePct    = dept.total > 0 ? (dept.late / dept.total) * 100 : 0;
+  const absentPct  = dept.total > 0 ? (dept.absent / dept.total) * 100 : 0;
+
   return (
-    <tr
-      onClick={onClick}
-      style={{ cursor: onClick ? 'pointer' : 'default' }}
-      onMouseEnter={e => { if (onClick) e.currentTarget.style.background = 'var(--bg)'; }}
-      onMouseLeave={e => { e.currentTarget.style.background = ''; }}
-    >
-      <td style={{ color: 'var(--text)', fontSize: 13, fontWeight: 500, padding: '8px 0' }}>
+    <tr onClick={onClick}>
+      <td style={{ fontWeight: 500, padding: '9px 8px 9px 0' }}>
         {dept.department}
       </td>
       <td style={{ textAlign: 'center' }}>
@@ -147,15 +192,14 @@ function DeptRow({ dept, onClick }) {
       <td style={{ textAlign: 'center' }}>
         <span className="text-sm" style={{ color: dept.absent > 0 ? 'var(--danger)' : 'var(--text-muted)' }}>{dept.absent}</span>
       </td>
-      <td style={{ width: 120 }}>
-        <div className="flex items-center gap-2">
-          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--border)' }}>
-            <div style={{ width: `${pct}%`, height: '100%', borderRadius: 9999, background: color }} />
+      <td style={{ width: 140, padding: '9px 0 9px 8px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div className="stacked-bar" style={{ flex: 1 }}>
+            {presentPct > 0 && <div className="stacked-bar__seg" style={{ width: `${presentPct}%`, background: '#1D9E75' }} />}
+            {latePct > 0 && <div className="stacked-bar__seg" style={{ width: `${latePct}%`, background: '#EF9F27' }} />}
+            {absentPct > 0 && <div className="stacked-bar__seg" style={{ width: `${absentPct}%`, background: '#E24B4A' }} />}
           </div>
-          <span style={{ fontSize: 10, fontWeight: 600, color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
-            {dept.present}/{dept.total}
-          </span>
-          <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 28, textAlign: 'right' }}>{pct}%</span>
+          <span style={{ fontSize: 11, fontWeight: 700, color, minWidth: 32, textAlign: 'right' }}>{pct}%</span>
         </div>
       </td>
     </tr>
@@ -177,6 +221,26 @@ function RankBadge({ rank }) {
         {RANK_LABELS[rank]}
       </span>
     </div>
+  );
+}
+
+// ─── Sparkline (tiny inline 7-day trend) ───────────────────────────────────
+
+function MiniSparkline({ data, color = '#1D9E75', height = 32 }) {
+  if (!data || data.length < 2) return null;
+  const id = `spark-${color.replace('#', '')}`;
+  return (
+    <ResponsiveContainer width="100%" height={height}>
+      <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+        <defs>
+          <linearGradient id={id} x1="0" y1="0" x2="0" y2="1">
+            <stop offset="5%"  stopColor={color} stopOpacity={0.25} />
+            <stop offset="95%" stopColor={color} stopOpacity={0}    />
+          </linearGradient>
+        </defs>
+        <Area type="monotone" dataKey="v" stroke={color} strokeWidth={1.5} fill={`url(#${id})`} dot={false} />
+      </AreaChart>
+    </ResponsiveContainer>
   );
 }
 
@@ -579,6 +643,24 @@ export default function Overview() {
   // Computed values
   const onTimeCount = stats.present != null && stats.late != null ? Math.max(0, stats.present - stats.late) : 0;
 
+  // Derive sparkline data from 30-day trend (last 7 data points)
+  const sparkPresent = useMemo(() =>
+    trend30.slice(-7).map(d => ({ v: d.onTime + (d.late || 0) })), [trend30]);
+  const sparkLate = useMemo(() =>
+    trend30.slice(-7).map(d => ({ v: d.late || 0 })), [trend30]);
+  const sparkAbsent = useMemo(() =>
+    trend30.slice(-7).map(d => ({ v: d.absent || 0 })), [trend30]);
+
+  // Compute attendance % for donut center
+  const attendancePct = stats.total > 0 ? Math.round(((stats.present || 0) / stats.total) * 100) : 0;
+
+  // Average present for reference line on trend chart
+  const avgPresent = useMemo(() => {
+    if (!trend30.length) return 0;
+    const sum = trend30.reduce((s, d) => s + (d.onTime || 0) + (d.late || 0), 0);
+    return Math.round(sum / trend30.length);
+  }, [trend30]);
+
   return (
     <div className="space-y-5 fade-up">
 
@@ -595,22 +677,25 @@ export default function Overview() {
          ═══════════════════════════════════════════════════════════════════ */}
       <div key={mode + customDate} className="tab-content space-y-5">
 
-        {/* ── 3 KPI Cards ─────────────────────────────────────────────── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* ── 3 KPI Cards — Equal Height Row ─────────────────────────── */}
+        <div className="grid-equal-row cols-3 stagger-enter">
 
-          {/* Present Card — with On Time embedded */}
+          {/* Present Card — with On Time embedded + sparkline */}
           {loading ? (
-            <div className="card p-5 fade-up">
+            <div className="stat-card-enterprise fade-up" style={{ borderTop: '3px solid #1D9E75' }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="skeleton h-3 w-28 rounded" />
                 <div className="skeleton h-9 w-9 rounded-lg" />
               </div>
               <div className="skeleton h-8 w-16 rounded mb-2" />
               <div className="skeleton h-3 w-32 rounded" />
+              <div style={{ marginTop: 'auto', paddingTop: 12 }}>
+                <div className="skeleton h-8 w-full rounded" />
+              </div>
             </div>
           ) : (
             <div
-              className="card p-5 fade-up card-lift"
+              className="stat-card-enterprise fade-up"
               style={{ borderTop: '3px solid #1D9E75', cursor: 'pointer' }}
               onClick={() => navigate('/attendance')}
             >
@@ -642,14 +727,23 @@ export default function Overview() {
                 })()}
               </div>
               {/* On Time sub-line with mini ring */}
-              <div style={{ marginTop: 6 }}>
+              <div style={{ marginTop: 4 }}>
                 <OnTimeRing onTime={onTimeCount} total={stats.present || 0} />
               </div>
+              {/* Sparkline footer */}
+              {sparkPresent.length >= 2 && (
+                <div className="sparkline-footer">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>7-day trend</span>
+                  </div>
+                  <MiniSparkline data={sparkPresent} color="#1D9E75" />
+                </div>
+              )}
             </div>
           )}
 
           {/* Late Card */}
-          <div onClick={() => navigate('/attendance?status=Late')} style={{ cursor: 'pointer' }}>
+          <div style={{ cursor: 'pointer' }} onClick={() => navigate('/attendance?status=Late')}>
             <StatCard
               title={mode === 'today' ? 'Late Today' : 'Late'}
               icon={MdAccessTime} color="#EF9F27"
@@ -657,22 +751,33 @@ export default function Overview() {
               sub={stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start'}
               loading={loading}
               delta={mode === 'today' && stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null}
+              sparkline={sparkLate.length >= 2 ? (
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>7-day trend</span>
+                  </div>
+                  <MiniSparkline data={sparkLate} color="#EF9F27" />
+                </div>
+              ) : null}
             />
           </div>
 
           {/* Away Card — Absent + On Leave */}
           {loading ? (
-            <div className="card p-5 fade-up">
+            <div className="stat-card-enterprise fade-up" style={{ borderTop: '3px solid #E24B4A' }}>
               <div className="flex items-center justify-between mb-4">
                 <div className="skeleton h-3 w-28 rounded" />
                 <div className="skeleton h-9 w-9 rounded-lg" />
               </div>
               <div className="skeleton h-8 w-16 rounded mb-2" />
               <div className="skeleton h-3 w-32 rounded" />
+              <div style={{ marginTop: 'auto', paddingTop: 12 }}>
+                <div className="skeleton h-8 w-full rounded" />
+              </div>
             </div>
           ) : (
             <div
-              className="card p-5 fade-up card-lift"
+              className="stat-card-enterprise fade-up"
               style={{ borderTop: '3px solid #E24B4A', cursor: 'pointer' }}
               onClick={() => navigate('/attendance?status=Absent')}
             >
@@ -708,126 +813,146 @@ export default function Overview() {
                 {' · '}
                 <span style={{ color: '#E24B4A', fontWeight: 700 }}>{Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))}</span> absent
               </p>
+              {/* Sparkline footer */}
+              {sparkAbsent.length >= 2 && (
+                <div className="sparkline-footer">
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 2 }}>
+                    <span style={{ fontSize: 10, color: 'var(--text-muted)', fontWeight: 600 }}>7-day trend</span>
+                  </div>
+                  <MiniSparkline data={sparkAbsent} color="#E24B4A" />
+                </div>
+              )}
             </div>
           )}
         </div>
 
         {/* ── Currently Working · Department Breakdown · Attendance Donut ── */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid-equal-row cols-3 stagger-enter">
 
-          <div className="h-full">
-            <SectionCard
-              title={mode === 'today' ? 'Currently Working' : 'Clocked In'}
-              subtitle={mode === 'today' ? 'Clocked in · not yet clocked out'
-                : `Who was present on ${customDate ? getShortDate(customDate) : 'this day'}`}
-              action={
-                mode === 'today'
-                  ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                      <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                      Live
-                    </div>
-                  : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                      Historical
-                    </div>
-              }
-            >
-              {loading ? (
-                <div className="space-y-3">
-                  <div className="skeleton h-12 w-20 rounded" />
-                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 rounded-lg" />)}
-                </div>
-              ) : (
-                <>
-                  <p className="text-5xl font-black mb-1" style={{ color: '#1D9E75' }}>
-                    {currentlyWorking.count}
-                    {stats.present > 0 && (
-                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>/{stats.present}</span>
-                    )}
-                  </p>
+          {/* Currently Working — scrollable with avatars */}
+          <SectionCard
+            title={mode === 'today' ? 'Currently Working' : 'Clocked In'}
+            subtitle={mode === 'today' ? 'Clocked in · not yet clocked out'
+              : `Who was present on ${customDate ? getShortDate(customDate) : 'this day'}`}
+            scrollable
+            maxScrollHeight={320}
+            action={
+              mode === 'today'
+                ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                    <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                    Live
+                  </div>
+                : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                    Historical
+                  </div>
+            }
+          >
+            {loading ? (
+              <div className="space-y-3">
+                <div className="skeleton h-12 w-20 rounded" />
+                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-10 rounded-lg" />)}
+              </div>
+            ) : (
+              <>
+                <p className="text-4xl font-black mb-1" style={{ color: '#1D9E75' }}>
+                  {currentlyWorking.count}
                   {stats.present > 0 && (
-                    <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                      of {stats.present} who clocked in today
-                    </p>
+                    <span style={{ fontSize: 16, fontWeight: 700, color: 'var(--text-muted)' }}>/{stats.present}</span>
                   )}
-                  <div className="space-y-1.5">
-                    {currentlyWorking.list.length === 0 ? (
-                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
-                    ) : (
-                      currentlyWorking.list.map(emp => (
+                </p>
+                {stats.present > 0 && (
+                  <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                    of {stats.present} who clocked in today
+                  </p>
+                )}
+                <div className="space-y-1.5">
+                  {currentlyWorking.list.length === 0 ? (
+                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
+                  ) : (
+                    currentlyWorking.list.map(emp => {
+                      const ac = avatarColor(emp.name);
+                      return (
                         <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
                           style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer' }}
                           onClick={() => navigate(`/person?id=${emp.id}`)}
                           onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
                           onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                          <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
+                          <div className="avatar-initial" style={{ background: ac + '18', color: ac, width: 28, height: 28, fontSize: 10 }}>
+                            {getInitials(emp.name)}
+                          </div>
                           <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
                           <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
                         </div>
-                      ))
-                    )}
-                    {currentlyWorking.count > currentlyWorking.list.length && (
-                      <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                        +{currentlyWorking.count - currentlyWorking.list.length} more
-                      </p>
-                    )}
-                  </div>
-                </>
-              )}
-            </SectionCard>
-          </div>
-
-          <div className="h-full">
-            <SectionCard title="Department Breakdown"
-              subtitle={mode === 'today' ? "Today's attendance by team"
-                : customDate ? `Attendance on ${getShortDate(customDate)} by team` : 'Attendance by team'}>
-              {loading ? (
-                <div className="space-y-3">
-                  {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
+                      );
+                    })
+                  )}
+                  {currentlyWorking.count > currentlyWorking.list.length && (
+                    <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                      +{currentlyWorking.count - currentlyWorking.list.length} more
+                    </p>
+                  )}
                 </div>
-              ) : deptBreakdown.length === 0 ? (
-                <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
-              ) : (
-                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                      {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
-                        <th key={h} style={{
-                          fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-                          textTransform: 'uppercase', letterSpacing: '0.06em',
-                          textAlign: h === 'Department' ? 'left' : 'center',
-                          paddingBottom: 8,
-                        }}>{h}</th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {deptBreakdown.map(dept => (
-                      <DeptRow
-                        key={dept.department}
-                        dept={dept}
-                        onClick={dept.id ? () => navigate(`/attendance?dept=${dept.id}`) : undefined}
-                      />
+              </>
+            )}
+          </SectionCard>
+
+          {/* Department Breakdown — scrollable with stacked bars */}
+          <SectionCard
+            title="Department Breakdown"
+            subtitle={mode === 'today' ? "Today's attendance by team"
+              : customDate ? `Attendance on ${getShortDate(customDate)} by team` : 'Attendance by team'}
+            scrollable
+            maxScrollHeight={320}
+          >
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
+              </div>
+            ) : deptBreakdown.length === 0 ? (
+              <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
+            ) : (
+              <table className="dept-table">
+                <thead>
+                  <tr>
+                    {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
+                      <th key={h} style={{
+                        textAlign: h === 'Department' ? 'left' : h === 'Rate' ? 'left' : 'center',
+                        paddingRight: h === 'Department' ? 8 : 0,
+                      }}>{h}</th>
                     ))}
-                  </tbody>
-                </table>
-              )}
-            </SectionCard>
-          </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {deptBreakdown.map(dept => (
+                    <DeptRow
+                      key={dept.department}
+                      dept={dept}
+                      onClick={dept.id ? () => navigate(`/attendance?dept=${dept.id}`) : undefined}
+                    />
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </SectionCard>
 
-          <div className="h-full">
-            <SectionCard title={mode === 'today' ? "Today's Attendance" : 'Attendance Breakdown'} subtitle="Present · Late · Absent · On Leave">
-              {loading ? (
-                <div className="skeleton h-44 rounded" />
-              ) : donutData.length === 0 ? (
-                <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                  <p className="text-sm">No attendance data</p>
-                </div>
-              ) : (
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 220 }}>
+          {/* Attendance Donut — with center metric */}
+          <SectionCard
+            title={mode === 'today' ? "Today's Attendance" : 'Attendance Breakdown'}
+            subtitle="Present · Late · Absent · On Leave"
+          >
+            {loading ? (
+              <div className="skeleton h-44 rounded" />
+            ) : donutData.length === 0 ? (
+              <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                <p className="text-sm">No attendance data</p>
+              </div>
+            ) : (
+              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 260 }}>
+                <div style={{ position: 'relative', flex: 1, minHeight: 200 }} className="donut-animate">
                   <ResponsiveContainer width="100%" height="100%">
                     <PieChart>
                       <Pie
-                        data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}
+                        data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={90} dataKey="value" paddingAngle={3}
                         style={{ cursor: 'pointer' }}
                         onClick={d => {
                           const dest = { Present: '/attendance', 'On Leave': '/attendance?status=Absent', Absent: '/attendance?status=Absent' }[d?.name];
@@ -840,17 +965,24 @@ export default function Overview() {
                       <Legend content={<DonutLegend />} />
                     </PieChart>
                   </ResponsiveContainer>
+                  {/* Center metric */}
+                  <div className="donut-center" style={{ bottom: 'auto', height: '80%' }}>
+                    <p className="donut-center__value">{attendancePct}%</p>
+                    <p className="donut-center__label">Attendance</p>
+                  </div>
                 </div>
-              )}
-            </SectionCard>
-          </div>
+              </div>
+            )}
+          </SectionCard>
 
         </div>
 
-        {/* ── Late Arrivals — full width ──────────────────────────────── */}
+        {/* ── Late Arrivals — full width with delay severity ────────── */}
         <SectionCard
           title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
           subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
+          scrollable
+          maxScrollHeight={360}
           action={
             !loading && (stats.late || 0) > 0 ? (
               <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
@@ -883,28 +1015,42 @@ export default function Overview() {
           ) : (
             <table className="data-table">
               <thead>
-                <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th></tr>
+                <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th><th style={{ width: 60 }}>Severity</th></tr>
               </thead>
               <tbody>
-                {data.lateArrivals.map(row => (
-                  <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}>
-                    <td>
-                      <div>
-                        <p className="font-semibold text-[13px]" style={{ color: 'var(--text)' }}>{row.name}</p>
-                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{row.department}</p>
-                      </div>
-                    </td>
-                    <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
-                    <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
-                    <td>
-                      {row.delay_minutes > 0
-                        ? <span className="pill pill-red">+{row.delay_minutes}m</span>
-                        : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
-                    </td>
-                  </tr>
-                ))}
+                {data.lateArrivals.map(row => {
+                  const sev = delaySeverity(row.delay_minutes || 0);
+                  const barPct = Math.min(100, ((row.delay_minutes || 0) / 60) * 100);
+                  return (
+                    <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}>
+                      <td>
+                        <div className="flex items-center gap-2.5">
+                          <div className="avatar-initial" style={{ background: avatarColor(row.name) + '18', color: avatarColor(row.name), width: 30, height: 30, fontSize: 10 }}>
+                            {getInitials(row.name)}
+                          </div>
+                          <div>
+                            <p className="font-semibold text-[13px]" style={{ color: 'var(--text)', margin: 0 }}>{row.name}</p>
+                            <p className="text-[11px]" style={{ color: 'var(--text-muted)', margin: 0 }}>{row.department}</p>
+                          </div>
+                        </div>
+                      </td>
+                      <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
+                      <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
+                      <td>
+                        {row.delay_minutes > 0
+                          ? <span className={`delay-pill ${sev.cls}`}>+{row.delay_minutes}m</span>
+                          : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                      </td>
+                      <td>
+                        {row.delay_minutes > 0 && (
+                          <div className="delay-bar">
+                            <div className="delay-bar__fill" style={{ width: `${barPct}%`, background: sev.color }} />
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
@@ -970,123 +1116,122 @@ export default function Overview() {
       })()}
 
       {/* ── 30-day Attendance Trend + Project Health ───────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+      <div className="grid-equal-row cols-5-3-2 stagger-enter">
 
-        {/* 30-day Attendance Trend — area chart */}
-        <div className="lg:col-span-3 h-full">
-          <SectionCard
-            title="30-Day Attendance Trend"
-            subtitle="Working days only · weekends & holidays excluded"
-            action={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                <MdTrendingUp size={14} style={{ color: 'var(--primary)' }} />
-                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last 30 days</span>
-              </div>
-            }
-          >
-            {trendLoading ? (
-              <div className="skeleton h-40 rounded" />
-            ) : trend30.length === 0 ? (
-              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No attendance trend data</p>
-              </div>
-            ) : (
-              <div style={{ height: '100%', minHeight: 155 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={trend30} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
-                  <defs>
-                    <linearGradient id="gradOnTime" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gradLate" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#EF9F27" stopOpacity={0.3} />
-                      <stop offset="95%" stopColor="#EF9F27" stopOpacity={0}   />
-                    </linearGradient>
-                    <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.25} />
-                      <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}    />
-                    </linearGradient>
-                  </defs>
-                  <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                  <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                  <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
-                  <Area type="monotone" dataKey="onTime" name="On Time" stroke="#1D9E75" strokeWidth={2} fill="url(#gradOnTime)" dot={false} />
-                  <Area type="monotone" dataKey="late"   name="Late"    stroke="#EF9F27" strokeWidth={2} fill="url(#gradLate)"   dot={false} />
-                  <Area type="monotone" dataKey="absent" name="Absent"  stroke="#E24B4A" strokeWidth={2} fill="url(#gradAbsent)" dot={false} />
-                </AreaChart>
-              </ResponsiveContainer>
-              </div>
-            )}
-          </SectionCard>
-        </div>
+        {/* 30-day Attendance Trend — area chart with average reference line */}
+        <SectionCard
+          title="30-Day Attendance Trend"
+          subtitle="Working days only · weekends & holidays excluded"
+          action={
+            <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+              <MdTrendingUp size={14} style={{ color: 'var(--primary)' }} />
+              <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>Last 30 days</span>
+            </div>
+          }
+        >
+          {trendLoading ? (
+            <div className="skeleton h-40 rounded" />
+          ) : trend30.length === 0 ? (
+            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+              <p className="text-sm">No attendance trend data</p>
+            </div>
+          ) : (
+            <div style={{ flex: 1, minHeight: 180 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={trend30} margin={{ top: 4, right: 4, bottom: 0, left: -20 }}>
+                <defs>
+                  <linearGradient id="gradOnTime" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#1D9E75" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#1D9E75" stopOpacity={0}   />
+                  </linearGradient>
+                  <linearGradient id="gradLate" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#EF9F27" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#EF9F27" stopOpacity={0}   />
+                  </linearGradient>
+                  <linearGradient id="gradAbsent" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%"  stopColor="#E24B4A" stopOpacity={0.25} />
+                    <stop offset="95%" stopColor="#E24B4A" stopOpacity={0}    />
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
+                <YAxis tick={{ fontSize: 9, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
+                <Tooltip content={<TrendTooltip />} cursor={{ stroke: 'var(--border)' }} />
+                {avgPresent > 0 && (
+                  <ReferenceLine y={avgPresent} stroke="var(--text-muted)" strokeDasharray="4 4" strokeWidth={1}>
+                    <label value={`Avg ${avgPresent}`} position="insideTopRight" className="ref-line-label" />
+                  </ReferenceLine>
+                )}
+                <Area type="monotone" dataKey="onTime" name="On Time" stroke="#1D9E75" strokeWidth={2} fill="url(#gradOnTime)" dot={false} />
+                <Area type="monotone" dataKey="late"   name="Late"    stroke="#EF9F27" strokeWidth={2} fill="url(#gradLate)"   dot={false} />
+                <Area type="monotone" dataKey="absent" name="Absent"  stroke="#E24B4A" strokeWidth={2} fill="url(#gradAbsent)" dot={false} />
+              </AreaChart>
+            </ResponsiveContainer>
+            </div>
+          )}
+        </SectionCard>
 
-        {/* Project Health Donut */}
-        <div className="lg:col-span-2 h-full">
-          <SectionCard
-            title="Project Health"
-            subtitle="Active projects by deadline status"
-            action={
-              <button onClick={() => navigate('/projects')} className="btn btn-ghost text-xs"
-                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                View All →
-              </button>
-            }
-          >
-            {healthLoading ? (
-              <div className="skeleton h-40 rounded" />
-            ) : !projectHealth || projectHealth.total === 0 ? (
-              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <MdFolderOpen size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
-                <p className="text-sm">No active projects</p>
+        {/* Project Health Donut — with center total */}
+        <SectionCard
+          title="Project Health"
+          subtitle="Active projects by deadline status"
+          action={
+            <button onClick={() => navigate('/projects')} className="btn btn-ghost text-xs"
+              style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+              View All →
+            </button>
+          }
+        >
+          {healthLoading ? (
+            <div className="skeleton h-40 rounded" />
+          ) : !projectHealth || projectHealth.total === 0 ? (
+            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+              <MdFolderOpen size={28} style={{ margin: '0 auto 8px', display: 'block', opacity: 0.3 }} />
+              <p className="text-sm">No active projects</p>
+            </div>
+          ) : (
+            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center' }}>
+              <div style={{ position: 'relative', height: 160 }} className="donut-animate">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={44} outerRadius={66}
+                      dataKey="value" paddingAngle={3}>
+                      {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
+                    </Pie>
+                    <Tooltip formatter={(v, n) => [v, n]} />
+                  </PieChart>
+                </ResponsiveContainer>
+                <div className="donut-center">
+                  <p className="donut-center__value">{projectHealth.total}</p>
+                  <p className="donut-center__label">Active</p>
+                </div>
               </div>
-            ) : (
-              <div>
-                <div style={{ position: 'relative', height: 150 }}>
-                  <ResponsiveContainer width="100%" height="100%">
-                    <PieChart>
-                      <Pie data={healthDonutData} cx="50%" cy="50%" innerRadius={44} outerRadius={66}
-                        dataKey="value" paddingAngle={3}>
-                        {healthDonutData.map((_, i) => <Cell key={i} fill={HEALTH_PIE_COLORS[i]} />)}
-                      </Pie>
-                      <Tooltip formatter={(v, n) => [v, n]} />
-                    </PieChart>
-                  </ResponsiveContainer>
-                  <div style={{
-                    position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column',
-                    alignItems: 'center', justifyContent: 'center', pointerEvents: 'none',
-                  }}>
-                    <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0 }}>{projectHealth.total}</p>
-                    <p style={{ fontSize: 9, color: 'var(--text-muted)', margin: 0 }}>active</p>
+              <div style={{ display: 'flex', justifyContent: 'center', gap: 16, flexWrap: 'wrap', marginTop: 8 }}>
+                {[
+                  { label: 'On Track', value: projectHealth.onTrack, color: '#1D9E75' },
+                  { label: 'At Risk',  value: projectHealth.atRisk,  color: '#EF9F27' },
+                  { label: 'Overdue',  value: projectHealth.overdue, color: '#E24B4A' },
+                ].map(item => (
+                  <div key={item.label} style={{ textAlign: 'center' }}>
+                    <p style={{ fontSize: 18, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
+                    <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.label}</p>
                   </div>
-                </div>
-                <div style={{ display: 'flex', justifyContent: 'center', gap: 12, flexWrap: 'wrap', marginTop: 4 }}>
-                  {[
-                    { label: 'On Track', value: projectHealth.onTrack, color: '#1D9E75' },
-                    { label: 'At Risk',  value: projectHealth.atRisk,  color: '#EF9F27' },
-                    { label: 'Overdue',  value: projectHealth.overdue, color: '#E24B4A' },
-                  ].map(item => (
-                    <div key={item.label} style={{ textAlign: 'center' }}>
-                      <p style={{ fontSize: 18, fontWeight: 800, color: item.color, margin: 0 }}>{item.value}</p>
-                      <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>{item.label}</p>
-                    </div>
-                  ))}
-                </div>
+                ))}
               </div>
-            )}
-          </SectionCard>
-        </div>
+            </div>
+          )}
+        </SectionCard>
       </div>
 
 
       {/* ── Most Hours Logged + Who's Away Today ──────────────────────── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div className="grid-equal-row cols-2 stagger-enter">
 
-        <div className="h-full">
         <SectionCard
           title="Most Hours Logged"
           subtitle="This month · attendance clock hours"
           action={<MdAvTimer size={16} style={{ color: '#378ADD' }} />}
+          scrollable
+          maxScrollHeight={300}
         >
           {perfLoading ? (
             <div className="space-y-3">
@@ -1127,13 +1272,13 @@ export default function Overview() {
             </div>
           )}
         </SectionCard>
-        </div>
 
         {/* Who's Away Today — actual names with leave status */}
-        <div className="h-full">
         <SectionCard
           title={mode === 'today' ? "Who's Away Today" : 'Who Was Away'}
           subtitle={loading ? '' : `${stats.absent || 0} away · ${stats.onLeave || 0} on leave · ${Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))} no record`}
+          scrollable
+          maxScrollHeight={300}
           action={
             (stats.absent || 0) > 0 ? (
               <button onClick={() => navigate('/attendance?status=Absent')} className="btn btn-ghost text-xs"
@@ -1156,80 +1301,79 @@ export default function Overview() {
             </div>
           ) : (
             <div className="space-y-1">
-              {data.absentList.slice(0, 7).map(p => (
-                <div
-                  key={p.id}
-                  onClick={() => navigate(`/person?id=${p.id}`)}
-                  className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer"
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                  onMouseLeave={e => e.currentTarget.style.background = ''}
-                >
-                  <span className="w-2 h-2 rounded-full shrink-0"
-                    style={{ background: p.onLeave ? '#8B5CF6' : '#E24B4A' }} />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
-                    <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{p.department || '—'}</p>
+              {data.absentList.slice(0, 8).map(p => {
+                const ac = avatarColor(p.name);
+                return (
+                  <div
+                    key={p.id}
+                    onClick={() => navigate(`/person?id=${p.id}`)}
+                    className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer"
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}
+                  >
+                    <div className="avatar-initial" style={{ background: ac + '18', color: ac, width: 26, height: 26, fontSize: 9 }}>
+                      {getInitials(p.name)}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
+                      <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{p.department || '—'}</p>
+                    </div>
+                    {p.onLeave ? (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                        background: '#8B5CF614', color: '#8B5CF6', border: '1px solid #8B5CF633',
+                      }}>
+                        On Leave{p.leaveType ? ` · ${p.leaveType}` : ''}
+                      </span>
+                    ) : (
+                      <span style={{
+                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                        background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                      }}>
+                        No record
+                      </span>
+                    )}
                   </div>
-                  {p.onLeave ? (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
-                      background: '#8B5CF614', color: '#8B5CF6', border: '1px solid #8B5CF633',
-                    }}>
-                      On Leave{p.leaveType ? ` · ${p.leaveType}` : ''}
-                    </span>
-                  ) : (
-                    <span style={{
-                      fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
-                      background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-                    }}>
-                      No record
-                    </span>
-                  )}
-                </div>
-              ))}
-              {(stats.absent || 0) > 7 && (
+                );
+              })}
+              {(stats.absent || 0) > 8 && (
                 <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                  +{(stats.absent || 0) - 7} more — View All
+                  +{(stats.absent || 0) - 8} more — View All
                 </p>
               )}
             </div>
           )}
         </SectionCard>
-        </div>
 
       </div>
 
       {/* ── Attendance Heatmap + Leave Calendar ────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+      <div className="grid-equal-row cols-2 stagger-enter">
 
-        <div>
-          <SectionCard title="Attendance Heatmap" subtitle="Daily team presence — whole year">
-            {heatmapLoading
-              ? <div className="skeleton h-44 rounded" />
-              : <AttendanceHeatmap
-                  data={heatmap.data}
-                  total={heatmap.total}
-                  year={heatmapYear}
-                  onYearChange={setHeatmapYear}
-                />
-            }
-          </SectionCard>
-        </div>
+        <SectionCard title="Attendance Heatmap" subtitle="Daily team presence — whole year">
+          {heatmapLoading
+            ? <div className="skeleton h-44 rounded" />
+            : <AttendanceHeatmap
+                data={heatmap.data}
+                total={heatmap.total}
+                year={heatmapYear}
+                onYearChange={setHeatmapYear}
+              />
+          }
+        </SectionCard>
 
-        <div>
-          <SectionCard title="Leave Calendar" subtitle="Approved leaves — month view">
-            {calLoading
-              ? <div className="skeleton h-72 rounded" />
-              : <LeaveCalendar
-                  leaves={calLeaves}
-                  year={calYear}
-                  month={calMonth}
-                  onPrev={prevCalMonth}
-                  onNext={nextCalMonth}
-                />
-            }
-          </SectionCard>
-        </div>
+        <SectionCard title="Leave Calendar" subtitle="Approved leaves — month view">
+          {calLoading
+            ? <div className="skeleton h-72 rounded" />
+            : <LeaveCalendar
+                leaves={calLeaves}
+                year={calYear}
+                month={calMonth}
+                onPrev={prevCalMonth}
+                onNext={nextCalMonth}
+              />
+          }
+        </SectionCard>
 
       </div>
     </div>
