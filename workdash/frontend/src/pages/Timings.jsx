@@ -7,15 +7,38 @@ import DataTable from '../components/DataTable';
 import { useToast } from '../components/Toast';
 import api from '../api/axios';
 
+const PRESETS = [
+  { id: '7d',    label: 'Last 7 Days'  },
+  { id: '30d',   label: 'Last 30 Days' },
+  { id: '90d',   label: 'Last 90 Days' },
+  { id: 'year',  label: 'This Year'    },
+  { id: 'custom',label: 'Custom Range' },
+];
+
+function presetDates(id) {
+  const now = new Date();
+  const todayStr = now.toISOString().slice(0, 10);
+  if (id === 'year') return { from: `${now.getFullYear()}-01-01`, to: todayStr };
+  const days = id === '7d' ? 7 : id === '30d' ? 30 : id === '90d' ? 90 : null;
+  if (days) { const d = new Date(now); d.setDate(d.getDate() - days + 1); return { from: d.toISOString().slice(0, 10), to: todayStr }; }
+  return null;
+}
+
 export default function Timings() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
   const now = new Date();
-  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1).toISOString().slice(0, 10);
   const today = now.toISOString().slice(0, 10);
 
-  const [from, setFrom] = useState(firstDay);
-  const [to, setTo] = useState(today);
+  const [preset, setPreset] = useState('30d');
+  const _init = presetDates('30d');
+  const [from, setFrom] = useState(_init.from);
+  const [to, setTo]     = useState(_init.to);
+
+  const handlePreset = (id) => {
+    setPreset(id);
+    if (id !== 'custom') { const d = presetDates(id); if (d) { setFrom(d.from); setTo(d.to); } }
+  };
   const [userId, setUserId] = useState('');
   const [projectId, setProjectId] = useState('');
   const [employees, setEmployees] = useState([]);
@@ -111,32 +134,64 @@ export default function Timings() {
   return (
     <div className="space-y-5 fade-up">
       {/* Filter */}
-      <div className="card px-5 py-4 flex flex-wrap gap-3 items-end">
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>From</label>
-          <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="form-input" />
+      <div className="card px-5 py-4">
+        {/* Preset row */}
+        <div className="flex flex-wrap items-center gap-2 mb-4 pb-4" style={{ borderBottom: '1px solid var(--border)' }}>
+          {PRESETS.map(p => (
+            <button
+              key={p.id}
+              onClick={() => handlePreset(p.id)}
+              style={{
+                height: 33, padding: '0 15px', borderRadius: 8, cursor: 'pointer', fontSize: 13,
+                fontWeight: preset === p.id ? 700 : 500,
+                border: `1px solid ${preset === p.id ? 'var(--primary)' : 'var(--border)'}`,
+                background: preset === p.id ? 'var(--primary)' : 'var(--card)',
+                color: preset === p.id ? '#fff' : 'var(--text-secondary)',
+                transition: 'all 0.15s',
+              }}
+            >
+              {p.label}
+            </button>
+          ))}
+          {preset !== 'custom' && (
+            <span className="text-xs ml-2" style={{ color: 'var(--text-muted)' }}>
+              {from} → {to}
+            </span>
+          )}
         </div>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>To</label>
-          <input type="date" value={to} onChange={e => setTo(e.target.value)} className="form-input" />
+
+        {/* Filters row */}
+        <div className="flex flex-wrap gap-3 items-end">
+          {preset === 'custom' && (
+            <>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>From</label>
+                <input type="date" value={from} onChange={e => setFrom(e.target.value)} className="form-input" />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>To</label>
+                <input type="date" value={to} max={today} onChange={e => setTo(e.target.value)} className="form-input" />
+              </div>
+            </>
+          )}
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Employee</label>
+            <select value={userId} onChange={e => setUserId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
+              <option value="">All Employees</option>
+              {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Project</label>
+            <select value={projectId} onChange={e => setProjectId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
+              <option value="">All Projects</option>
+              {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+            </select>
+          </div>
+          <button onClick={handleExport} className="btn btn-secondary ml-auto">
+            <MdDownload size={15} /> Export CSV
+          </button>
         </div>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Employee</label>
-          <select value={userId} onChange={e => setUserId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
-            <option value="">All Employees</option>
-            {employees.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="block text-xs font-medium mb-1.5" style={{ color: 'var(--text-secondary)' }}>Project</label>
-          <select value={projectId} onChange={e => setProjectId(e.target.value)} className="form-input form-select" style={{ paddingRight: 28 }}>
-            <option value="">All Projects</option>
-            {projects.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
-          </select>
-        </div>
-        <button onClick={handleExport} className="btn btn-secondary ml-auto">
-          <MdDownload size={15} /> Export CSV
-        </button>
       </div>
 
       {/* Stats */}

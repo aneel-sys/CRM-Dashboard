@@ -48,14 +48,21 @@ async function broadcast() {
     const [[{ present }]] = await pool.query(`SELECT COUNT(DISTINCT user_id) as present FROM ${tbl('attendances')} WHERE DATE(clock_in_time)=?`, [today]);
     const [[{ late }]]    = await pool.query(`SELECT COUNT(*) as late FROM ${tbl('attendances')} WHERE DATE(clock_in_time)=? AND late='yes'`, [today]);
 
+    const absent = total - present;
+
     let on_leave = 0;
     try {
       const [[row]] = await pool.query(
-        `SELECT COUNT(*) as ol FROM ${tbl('leaves')} WHERE DATE(leave_date)=? AND status='approved'`, [today]);
-      on_leave = row.ol || 0;
+        `SELECT COUNT(DISTINCT l.user_id) as on_leave FROM ${tbl('leaves')} l
+         WHERE DATE(l.leave_date) = ? AND l.status = 'approved'
+           AND l.user_id NOT IN (
+             SELECT DISTINCT user_id FROM ${tbl('attendances')}
+             WHERE DATE(clock_in_time) = ?
+           )`,
+        [today, today]
+      );
+      on_leave = Math.min(row.on_leave || 0, absent);
     } catch {}
-
-    const absent = total - present;
 
     const [lateRows] = await pool.query(
       `SELECT u.id, u.name, u.email,
@@ -102,7 +109,7 @@ async function broadcast() {
       date: today,
       stats: { total, present, late, absent, onLeave: on_leave },
       lateArrivals: lateRows,
-      attendanceBreakdown: { present: present - on_leave, onLeave: on_leave, absent },
+      attendanceBreakdown: { present, onLeave: on_leave, absent: Math.max(0, absent - on_leave) },
       currentlyWorking,
     });
   } catch (err) {

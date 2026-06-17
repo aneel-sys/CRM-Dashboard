@@ -41,32 +41,44 @@ function getFormattedDate() {
 
 // ─── Sub-components ────────────────────────────────────────────────────────
 
-function GreetingHeader({ stats, loading, username }) {
-  const presentPct = stats.total > 0 ? Math.round((stats.present / stats.total) * 100) : null;
+function GreetingHeader({ username, mode, onModeChange, customDate, onCustomDateChange }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 
-  const pulse = (() => {
-    if (presentPct === null || loading) return null;
-    if (presentPct >= 85 && (stats.late / stats.total) < 0.10)
-      return { label: 'Strong day',       color: '#1D9E75', bg: '#F0FDF4', border: '#A7F3D0', insight: 'Team attendance is excellent today.' };
-    if (presentPct >= 75)
-      return { label: 'Moderate',         color: '#D97706', bg: '#FFFBEB', border: '#FDE68A', insight: `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''} clocked in late today.` };
-    if (presentPct >= 60)
-      return { label: 'Below average',    color: '#EA580C', bg: '#FFF7ED', border: '#FED7AA', insight: `${stats.absent || 0} absent — worth a check-in.` };
-    return   { label: 'Needs attention',  color: '#E24B4A', bg: '#FEF2F2', border: '#FECACA', insight: `High absenteeism — ${stats.absent || 0} employees not in today.` };
-  })();
+  const customLabel = customDate
+    ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
+    : '';
+
+  const TAB = (id, children, accent) => (
+    <button
+      onClick={() => onModeChange(id)}
+      style={{
+        height: 38, padding: '0 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
+        background: mode === id ? 'var(--card)' : 'transparent',
+        color: mode === id ? accent : 'var(--text-muted)',
+        fontWeight: mode === id ? 700 : 500, fontSize: 13,
+        boxShadow: mode === id ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
+        transition: 'all 0.18s',
+        display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
+      }}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div style={{
       background: 'var(--card)',
       borderRadius: 14,
-      borderLeft: '4px solid #1D9E75',
-      padding: '18px 24px',
+      borderLeft: `4px solid ${mode === 'custom' ? '#7C3AED' : '#1D9E75'}`,
+      padding: '16px 24px',
       display: 'flex',
       alignItems: 'center',
       justifyContent: 'space-between',
       flexWrap: 'wrap',
       gap: 16,
       boxShadow: 'var(--card-shadow)',
+      transition: 'border-color 0.3s',
     }}>
       {/* Left — greeting */}
       <div>
@@ -74,42 +86,55 @@ function GreetingHeader({ stats, loading, username }) {
           {getGreeting()}{username ? `, ${username}` : ''}
         </p>
         <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
-          {getFormattedDate()}
+          {mode === 'custom' && customLabel ? `Snapshot · ${customLabel}` : getFormattedDate()}
         </p>
       </div>
 
-      {/* Right — attendance pulse */}
-      {pulse && (
+      {/* Right — mode switcher */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+        {/* Date picker (custom mode only) */}
+        {mode === 'custom' && (
+          <input
+            type="date"
+            value={customDate}
+            max={todayStr}
+            onChange={e => onCustomDateChange(e.target.value)}
+            className="form-input"
+            style={{ height: 38, fontSize: 13, borderRadius: 9 }}
+          />
+        )}
+
+        {/* Tabs */}
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 14,
-          background: pulse.bg,
-          border: `1px solid ${pulse.border}`,
-          borderRadius: 12,
-          padding: '10px 18px',
+          display: 'flex', background: 'var(--bg)', borderRadius: 11, padding: 3, gap: 2,
+          border: '1px solid var(--border)',
         }}>
-          {/* Mini attendance bar */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 3 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-              <div style={{ width: 120, height: 6, borderRadius: 3, background: 'rgba(0,0,0,0.08)', overflow: 'hidden' }}>
-                <div style={{ height: '100%', borderRadius: 3, background: pulse.color, width: `${presentPct}%`, transition: 'width 0.6s ease' }} />
-              </div>
-              <span style={{ fontSize: 13, fontWeight: 800, color: pulse.color, minWidth: 36 }}>{presentPct}%</span>
-            </div>
-            <p style={{ fontSize: 10, color: 'var(--text-muted)', margin: 0 }}>
-              {stats.present ?? 0} of {stats.total ?? 0} clocked in today
-            </p>
-          </div>
-          {/* Divider */}
-          <div style={{ width: 1, height: 32, background: pulse.border }} />
-          {/* Status label + insight */}
-          <div>
-            <p style={{ fontSize: 12, fontWeight: 700, color: pulse.color, margin: 0 }}>{pulse.label}</p>
-            <p style={{ fontSize: 11, color: 'var(--text-secondary)', margin: '2px 0 0', maxWidth: 220 }}>{pulse.insight}</p>
-          </div>
+          {TAB('today',
+            <>
+              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1D9E75', display: 'inline-block', opacity: mode === 'today' ? 1 : 0.35 }} />
+              Today's Overview
+              <span style={{ fontSize: 11, color: mode === 'today' ? '#1D9E75' : 'var(--text-muted)', fontWeight: 600 }}>
+                · {todayLabel}
+              </span>
+              {mode === 'today' && (
+                <span style={{ fontSize: 9, fontWeight: 800, color: '#1D9E75', background: '#1D9E7518', padding: '2px 6px', borderRadius: 9999, letterSpacing: '0.04em' }}>
+                  LIVE
+                </span>
+              )}
+            </>,
+            '#1D9E75'
+          )}
+          {TAB('custom',
+            <>
+              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: mode === 'custom' ? 1 : 0.5 }}>
+                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+              </svg>
+              Custom Date
+            </>,
+            '#7C3AED'
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }
@@ -444,6 +469,13 @@ export default function Overview() {
   const { user }        = useAuth();
   const fmt             = dt => fmtTime(dt, timeFormat);
 
+  const [mode, setMode]         = useState('today');
+  const [customDate, setCustomDate] = useState(() => {
+    const d = new Date(); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10);
+  });
+
+  const handleModeChange = (newMode) => { setMode(newMode); };
+
   const [data, setData]                     = useState(null);
   const [loading, setLoading]               = useState(true);
   const [trend30, setTrend30]               = useState([]);
@@ -465,16 +497,18 @@ export default function Overview() {
 
   const sseOverview = useSSE('overview');
 
-  // Initial load + manual refresh
+  // Load on refresh, mode switch, or custom date change
   useEffect(() => {
     setLoading(true);
-    api.get('/overview/today')
+    const url = mode === 'custom' && customDate ? `/overview/today?date=${customDate}` : '/overview/today';
+    api.get(url)
       .then(res => { setData(res.data); setLoading(false); })
       .catch(err => { toast(err.response?.data?.message || 'Failed to load overview'); setLoading(false); });
-  }, [refreshKey]);
+  }, [refreshKey, mode, customDate]);
 
-  // SSE push
+  // SSE push — only in today mode
   useEffect(() => {
+    if (mode !== 'today') return;
     if (!sseOverview?.data) return;
     const d = sseOverview.data;
     setData(prev => prev ? {
@@ -484,7 +518,7 @@ export default function Overview() {
       attendanceBreakdown: d.attendanceBreakdown ?? prev.attendanceBreakdown,
       currentlyWorking:    d.currentlyWorking    ?? prev.currentlyWorking,
     } : null);
-  }, [sseOverview]);
+  }, [sseOverview, mode]);
 
   // 30-day trend
   useEffect(() => {
@@ -574,16 +608,23 @@ export default function Overview() {
     <div className="space-y-5 fade-up">
 
       {/* ── Greeting header ───────────────────────────────────────────── */}
-      <GreetingHeader stats={stats} loading={loading} username={user?.username} />
+      <GreetingHeader
+        username={user?.username}
+        mode={mode} onModeChange={handleModeChange}
+        customDate={customDate} onCustomDateChange={setCustomDate}
+      />
 
       {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: 'Present Today',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',                                   sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance',
-            delta: stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
-          { title: 'Late Today',       icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',                                   sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start', to: '/attendance?status=Late',
-            delta: stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
-          { title: 'Hours This Month', icon: MdAvTimer,    color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—', sub: 'across all projects',                                          to: '/timings' },
+          { title: mode === 'today' ? 'Present Today' : 'Present',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',
+            sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance',
+            delta: mode === 'today' && stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
+          { title: mode === 'today' ? 'Late Today' : 'Late',          icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',
+            sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start', to: '/attendance?status=Late',
+            delta: mode === 'today' && stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
+          { title: 'Hours This Month', icon: MdAvTimer, color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—',
+            sub: 'across all projects', to: '/timings' },
         ].map(card => (
           <div key={card.title} onClick={() => navigate(card.to)} style={{ cursor: 'pointer' }}>
             <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} delta={card.delta} />
@@ -622,7 +663,7 @@ export default function Overview() {
                   <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>/{stats.total}</span>
                 )}
               </p>
-              {stats.prev && (() => {
+              {mode === 'today' && stats.prev && (() => {
                 const diff = (stats.absent || 0) - stats.prev.absent;
                 const color = diff === 0 ? 'var(--text-muted)' : diff > 0 ? '#E24B4A' : '#1D9E75';
                 return (
@@ -647,13 +688,18 @@ export default function Overview() {
 
         <div className="h-full">
           <SectionCard
-            title="Currently Working"
-            subtitle="Clocked in · not yet clocked out"
+            title={mode === 'today' ? 'Currently Working' : 'Clocked In'}
+            subtitle={mode === 'today' ? 'Clocked in · not yet clocked out'
+              : `Who was present on ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'this day'}`}
             action={
-              <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                Live
-              </div>
+              mode === 'today'
+                ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                    <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                    Live
+                  </div>
+                : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                    Historical
+                  </div>
             }
           >
             {loading ? (
@@ -738,7 +784,7 @@ export default function Overview() {
         </div>
 
         <div className="h-full">
-          <SectionCard title="Today's Attendance" subtitle="Present · Late · Absent · On Leave">
+          <SectionCard title={mode === 'today' ? "Today's Attendance" : 'Attendance Breakdown'} subtitle="Present · Late · Absent · On Leave">
             {loading ? (
               <div className="skeleton h-44 rounded" />
             ) : donutData.length === 0 ? (
@@ -776,8 +822,8 @@ export default function Overview() {
         {/* Late Arrivals */}
         <div className="lg:col-span-3 h-full">
           <SectionCard
-            title="Late Arrivals Today"
-            subtitle={loading ? '' : `${stats.late || 0} employees`}
+            title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
+            subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
             action={
               !loading && (stats.late || 0) > 0 ? (
                 <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
@@ -1037,7 +1083,7 @@ export default function Overview() {
         {/* Who's Away Today — actual names with leave status */}
         <div className="h-full">
         <SectionCard
-          title="Who's Away Today"
+          title={mode === 'today' ? "Who's Away Today" : 'Who Was Away'}
           subtitle={loading ? '' : `${stats.absent || 0} away · ${stats.onLeave || 0} on leave · ${Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))} no record`}
           action={
             (stats.absent || 0) > 0 ? (

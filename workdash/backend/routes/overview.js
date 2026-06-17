@@ -4,18 +4,21 @@ const { pool, tbl } = require('../db/connection');
 const { getOfficeSettings } = require('../db/officeSettings');
 const { requireAuth } = require('../middleware/auth');
 
-let cache = { data: null, ts: 0 };
+let cache = { data: null, ts: 0, date: '' };
 const CACHE_TTL = 30 * 1000;
 
-// GET /api/overview/today
+// GET /api/overview/today?date=YYYY-MM-DD  (omit date for live today view)
 router.get('/today', requireAuth, async (req, res) => {
   try {
-    const now = Date.now();
-    if (cache.data && now - cache.ts < CACHE_TTL) {
+    const todayStr = new Date().toISOString().slice(0, 10);
+    const targetDate = (req.query.date && req.query.date <= todayStr) ? req.query.date.slice(0, 10) : todayStr;
+    const isToday = targetDate === todayStr;
+
+    if (isToday && cache.date === todayStr && cache.data && Date.now() - cache.ts < CACHE_TTL) {
       return res.json({ success: true, ...cache.data });
     }
 
-    const today = new Date().toISOString().slice(0, 10);
+    const today = targetDate;
     const { officeStart, lateMarkDuration } = await getOfficeSettings();
 
     // Total active employees
@@ -92,26 +95,22 @@ router.get('/today', requireAuth, async (req, res) => {
       }
     } catch { prev = null; }
 
-    // Currently working: clocked in today, no clock-out yet
+    // Currently working (today) or clocked in (historical custom date)
     let currentlyWorking = { count: 0, list: [] };
     try {
+      const clockOutCond = isToday ? 'AND a.clock_out_time IS NULL' : '';
       const [[{ count }]] = await pool.query(
         `SELECT COUNT(DISTINCT a.user_id) as count
          FROM ${tbl('attendances')} a
-         WHERE DATE(a.clock_in_time) = ?
-           AND a.clock_in_time IS NOT NULL
-           AND a.clock_out_time IS NULL`,
+         WHERE DATE(a.clock_in_time) = ? AND a.clock_in_time IS NOT NULL ${clockOutCond}`,
         [today]
       );
       const [list] = await pool.query(
         `SELECT u.id, u.name, a.clock_in_time
          FROM ${tbl('attendances')} a
          JOIN ${tbl('users')} u ON u.id = a.user_id
-         WHERE DATE(a.clock_in_time) = ?
-           AND a.clock_in_time IS NOT NULL
-           AND a.clock_out_time IS NULL
-         ORDER BY a.clock_in_time ASC
-         LIMIT 8`,
+         WHERE DATE(a.clock_in_time) = ? AND a.clock_in_time IS NOT NULL ${clockOutCond}
+         ORDER BY a.clock_in_time ASC LIMIT 8`,
         [today]
       );
       currentlyWorking = { count, list };
@@ -179,19 +178,24 @@ router.get('/today', requireAuth, async (req, res) => {
       }));
     } catch { }
 
-    // Hours this month
+    // Hours for the month of the target date
+    const _td = new Date(today + 'T00:00:00');
+    const tgtMonth = _td.getMonth() + 1;
+    const tgtYear  = _td.getFullYear();
     let monthHours = 0;
     try {
       const [[row]] = await pool.query(
         `SELECT COALESCE(SUM(total_hours), 0) as hours FROM ${tbl('project_time_logs')}
-         WHERE MONTH(start_time) = MONTH(CURDATE()) AND YEAR(start_time) = YEAR(CURDATE())`
+         WHERE MONTH(start_time) = ? AND YEAR(start_time) = ?`,
+        [tgtMonth, tgtYear]
       );
       monthHours = parseFloat(row.hours) || 0;
     } catch {
       try {
         const [[row]] = await pool.query(
           `SELECT COALESCE(SUM(total_hours), 0) as hours FROM ${tbl('timelogs')}
-           WHERE MONTH(created_at) = MONTH(CURDATE()) AND YEAR(created_at) = YEAR(CURDATE())`
+           WHERE MONTH(created_at) = ? AND YEAR(created_at) = ?`,
+          [tgtMonth, tgtYear]
         );
         monthHours = parseFloat(row.hours) || 0;
       } catch { }
@@ -337,6 +341,7 @@ router.get('/today', requireAuth, async (req, res) => {
 
     const data = {
       date: today,
+      isCustomDate: !isToday,
       stats: {
         total, present, late, absent,
         onLeave: on_leave,
@@ -357,7 +362,7 @@ router.get('/today', requireAuth, async (req, res) => {
       absentList,
     };
 
-    cache = { data, ts: Date.now() };
+    if (isToday) cache = { data, ts: Date.now(), date: todayStr };
     res.json({ success: true, ...data });
   } catch (err) {
     console.error('Overview error:', err.message);
