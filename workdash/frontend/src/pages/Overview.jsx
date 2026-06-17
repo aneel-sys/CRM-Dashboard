@@ -7,7 +7,8 @@ import {
 } from 'recharts';
 import {
   MdPeople, MdAccessTime, MdPersonOff, MdAvTimer, MdBeachAccess, MdWork, MdSignalWifi4Bar,
-  MdTrendingUp, MdFolderOpen, MdEmojiEvents, MdCheckCircle,
+  MdTrendingUp, MdFolderOpen, MdEmojiEvents, MdCheckCircle, MdCalendarToday,
+  MdInsights, MdArrowForward,
 } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
@@ -23,121 +24,91 @@ const HEALTH_COLORS = { onTrack: '#1D9E75', atRisk: '#EF9F27', overdue: '#E24B4A
 
 // ─── helpers ──────────────────────────────────────────────────────────────
 
-function getGreeting() {
-  const h = new Date().getHours();
-  if (h < 12) return 'Good morning';
-  if (h < 17) return 'Good afternoon';
-  if (h < 21) return 'Good evening';
-  return 'Good night';
+function getFormattedDate(dateStr) {
+  const d = dateStr ? new Date(dateStr + 'T00:00:00') : new Date();
+  const weekday = d.toLocaleDateString('en-GB', { weekday: 'long' });
+  const day     = String(d.getDate()).padStart(2, '0');
+  const month   = d.toLocaleDateString('en-GB', { month: 'long' });
+  return `${weekday}, ${day} ${month}`;
 }
 
-function getFormattedDate() {
-  const now = new Date();
-  const weekday = now.toLocaleDateString('en-GB', { weekday: 'long' });
-  const day     = String(now.getDate()).padStart(2, '0');
-  const month   = now.toLocaleDateString('en-GB', { month: 'long' });
-  return `${weekday} ${day} ${month}`;
+function getShortDate(dateStr) {
+  if (!dateStr) return '';
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
 }
 
-// ─── Sub-components ────────────────────────────────────────────────────────
+// ─── Command Center ────────────────────────────────────────────────────────
 
-function GreetingHeader({ username, mode, onModeChange, customDate, onCustomDateChange }) {
+function CommandCenter({ mode, onModeChange, customDate, onCustomDateChange }) {
   const todayStr = new Date().toISOString().slice(0, 10);
-  const todayLabel = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const todayLabel = getFormattedDate();
 
   const customLabel = customDate
-    ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long' })
-    : '';
-
-  const TAB = (id, children, accent) => (
-    <button
-      onClick={() => onModeChange(id)}
-      style={{
-        height: 38, padding: '0 16px', borderRadius: 9, border: 'none', cursor: 'pointer',
-        background: mode === id ? 'var(--card)' : 'transparent',
-        color: mode === id ? accent : 'var(--text-muted)',
-        fontWeight: mode === id ? 700 : 500, fontSize: 13,
-        boxShadow: mode === id ? '0 1px 4px rgba(0,0,0,0.12)' : 'none',
-        transition: 'all 0.18s',
-        display: 'flex', alignItems: 'center', gap: 7, whiteSpace: 'nowrap',
-      }}
-    >
-      {children}
-    </button>
-  );
+    ? getFormattedDate(customDate)
+    : 'Select a date';
 
   return (
-    <div style={{
-      background: 'var(--card)',
-      borderRadius: 14,
-      borderLeft: `4px solid ${mode === 'custom' ? '#7C3AED' : '#1D9E75'}`,
-      padding: '16px 24px',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      flexWrap: 'wrap',
-      gap: 16,
-      boxShadow: 'var(--card-shadow)',
-      transition: 'border-color 0.3s',
-    }}>
-      {/* Left — greeting */}
-      <div>
-        <p style={{ fontSize: 20, fontWeight: 800, color: 'var(--text)', margin: 0, lineHeight: 1.2 }}>
-          {getGreeting()}{username ? `, ${username}` : ''}
-        </p>
-        <p style={{ fontSize: 13, color: 'var(--text-muted)', margin: '3px 0 0' }}>
-          {mode === 'custom' && customLabel ? `Snapshot · ${customLabel}` : getFormattedDate()}
-        </p>
-      </div>
+    <div className="command-bar">
+      {/* Today's Overview tab */}
+      <button
+        className={`mode-card mode-card--today ${mode === 'today' ? 'mode-card--active' : ''}`}
+        onClick={() => onModeChange('today')}
+      >
+        <div className="mode-card__icon">
+          <MdTrendingUp size={22} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+            <p className="mode-card__title">Today's Overview</p>
+            {mode === 'today' && (
+              <span className="mode-card__badge mode-card__badge--live">
+                <span className="live-dot" />
+                LIVE
+              </span>
+            )}
+          </div>
+          <p className="mode-card__sub">{todayLabel}</p>
+        </div>
+        {mode === 'today' && (
+          <MdCheckCircle size={20} style={{ color: '#1D9E75', flexShrink: 0 }} />
+        )}
+      </button>
 
-      {/* Right — mode switcher */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-        {/* Date picker (custom mode only) */}
+      {/* Custom Date tab */}
+      <button
+        className={`mode-card mode-card--custom ${mode === 'custom' ? 'mode-card--active' : ''}`}
+        onClick={() => onModeChange('custom')}
+        style={{ pointerEvents: mode === 'custom' ? 'auto' : undefined }}
+      >
+        <div className="mode-card__icon">
+          <MdCalendarToday size={20} />
+        </div>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <p className="mode-card__title">Custom Date</p>
+          <p className="mode-card__sub">
+            {mode === 'custom' ? customLabel : 'View historical data'}
+          </p>
+        </div>
         {mode === 'custom' && (
           <input
             type="date"
             value={customDate}
             max={todayStr}
-            onChange={e => onCustomDateChange(e.target.value)}
+            onChange={e => { e.stopPropagation(); onCustomDateChange(e.target.value); }}
+            onClick={e => e.stopPropagation()}
             className="form-input"
-            style={{ height: 38, fontSize: 13, borderRadius: 9 }}
+            style={{ height: 34, fontSize: 12, borderRadius: 8, width: 'auto', flexShrink: 0, cursor: 'pointer' }}
           />
         )}
-
-        {/* Tabs */}
-        <div style={{
-          display: 'flex', background: 'var(--bg)', borderRadius: 11, padding: 3, gap: 2,
-          border: '1px solid var(--border)',
-        }}>
-          {TAB('today',
-            <>
-              <span style={{ width: 7, height: 7, borderRadius: '50%', background: '#1D9E75', display: 'inline-block', opacity: mode === 'today' ? 1 : 0.35 }} />
-              Today's Overview
-              <span style={{ fontSize: 11, color: mode === 'today' ? '#1D9E75' : 'var(--text-muted)', fontWeight: 600 }}>
-                · {todayLabel}
-              </span>
-              {mode === 'today' && (
-                <span style={{ fontSize: 9, fontWeight: 800, color: '#1D9E75', background: '#1D9E7518', padding: '2px 6px', borderRadius: 9999, letterSpacing: '0.04em' }}>
-                  LIVE
-                </span>
-              )}
-            </>,
-            '#1D9E75'
-          )}
-          {TAB('custom',
-            <>
-              <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: mode === 'custom' ? 1 : 0.5 }}>
-                <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
-              </svg>
-              Custom Date
-            </>,
-            '#7C3AED'
-          )}
-        </div>
-      </div>
+        {mode !== 'custom' && (
+          <MdArrowForward size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+        )}
+      </button>
     </div>
   );
 }
+
+// ─── Sub-components ────────────────────────────────────────────────────────
 
 function SectionCard({ title, subtitle, children, action, className = '' }) {
   return (
@@ -210,18 +181,6 @@ function RankBadge({ rank }) {
 }
 
 // ─── Tooltips ──────────────────────────────────────────────────────────────
-
-const DailyHoursTooltip = ({ active, payload }) => {
-  if (!active || !payload?.length) return null;
-  const d = payload[0].payload;
-  return (
-    <div className="card px-3 py-2 text-xs" style={{ boxShadow: 'var(--card-shadow-md)' }}>
-      <p className="font-semibold" style={{ color: 'var(--text)', marginBottom: 2 }}>{d.name}</p>
-      <p style={{ color: 'var(--primary)', margin: 0 }}>{d.hours}h logged</p>
-      {d.employees > 0 && <p style={{ color: 'var(--text-muted)', margin: 0 }}>{d.employees} employee{d.employees !== 1 ? 's' : ''}</p>}
-    </div>
-  );
-};
 
 const TrendTooltip = ({ active, payload, label }) => {
   if (!active || !payload?.length) return null;
@@ -459,6 +418,28 @@ function LeaveCalendar({ leaves, year, month, onPrev, onNext }) {
   );
 }
 
+// ─── On-Time Ring (inline mini ring for Present card) ──────────────────────
+
+function OnTimeRing({ onTime, total }) {
+  const pct = total > 0 ? Math.round((onTime / total) * 100) : 0;
+  const r = 11, circ = 2 * Math.PI * r;
+  const offset = circ - (circ * pct / 100);
+  return (
+    <div style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+      <svg className="inline-ring" viewBox="0 0 28 28">
+        <circle cx="14" cy="14" r={r} stroke="var(--border)" />
+        <circle cx="14" cy="14" r={r} stroke="#1D9E75"
+          strokeDasharray={circ} strokeDashoffset={offset}
+          transform="rotate(-90 14 14)" />
+      </svg>
+      <span style={{ fontSize: 12, color: '#1D9E75', fontWeight: 700 }}>
+        {onTime} on time
+        <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}> ({pct}%)</span>
+      </span>
+    </div>
+  );
+}
+
 // ─── Main page ─────────────────────────────────────────────────────────────
 
 export default function Overview() {
@@ -581,15 +562,6 @@ export default function Overview() {
   const currentlyWorking = data?.currentlyWorking || { count: 0, list: [] };
   const deptBreakdown    = data?.deptBreakdown || [];
 
-  const dailyData = (data?.dailyHours || []).map(d => {
-    const dt = new Date(d.date + 'T00:00:00');
-    return {
-      name:      dt.toLocaleDateString('en-GB', { day: '2-digit', month: 'short' }),
-      hours:     parseFloat(d.hours) || 0,
-      employees: d.employees || 0,
-    };
-  });
-
   const donutData = [
     { name: 'Present',  value: data?.attendanceBreakdown?.present  || 0 },
     { name: 'On Leave', value: data?.attendanceBreakdown?.onLeave  || 0 },
@@ -604,98 +576,359 @@ export default function Overview() {
 
   const HEALTH_PIE_COLORS = ['#1D9E75', '#EF9F27', '#E24B4A'];
 
+  // Computed values
+  const onTimeCount = stats.present != null && stats.late != null ? Math.max(0, stats.present - stats.late) : 0;
+
   return (
     <div className="space-y-5 fade-up">
 
-      {/* ── Greeting header ───────────────────────────────────────────── */}
-      <GreetingHeader
-        username={user?.username}
+      {/* ═══════════════════════════════════════════════════════════════════
+           ZONE 1 — Command Center
+         ═══════════════════════════════════════════════════════════════════ */}
+      <CommandCenter
         mode={mode} onModeChange={handleModeChange}
         customDate={customDate} onCustomDateChange={setCustomDate}
       />
 
-      {/* ── KPI stat cards — all daily metrics for the selected date ──── */}
-      <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
-        {[
-          { title: mode === 'today' ? 'Present Today' : 'Present',
-            icon: MdPeople,       color: '#1D9E75',
-            value: stats.present ?? '—',
-            sub: stats.total !== undefined ? `of ${stats.total} employees` : '—',
-            to: '/attendance',
-            delta: mode === 'today' && stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
-          { title: mode === 'today' ? 'Late Today' : 'Late',
-            icon: MdAccessTime,   color: '#EF9F27',
-            value: stats.late ?? '—',
-            sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start',
-            to: '/attendance?status=Late',
-            delta: mode === 'today' && stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
-          { title: mode === 'today' ? 'On Time Today' : 'On Time',
-            icon: MdCheckCircle,  color: '#1D9E75',
-            value: stats.present != null && stats.late != null ? Math.max(0, stats.present - stats.late) : '—',
-            sub: stats.present > 0
-              ? `${Math.round((Math.max(0, stats.present - stats.late) / stats.present) * 100)}% on-time rate`
-              : 'clocked in before start',
-            to: '/attendance' },
-        ].map(card => (
-          <div key={card.title} onClick={() => navigate(card.to)} style={{ cursor: 'pointer' }}>
-            <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} delta={card.delta} />
-          </div>
-        ))}
+      {/* ═══════════════════════════════════════════════════════════════════
+           ZONE 2 — Tab-Specific Content
+         ═══════════════════════════════════════════════════════════════════ */}
+      <div key={mode + customDate} className="tab-content space-y-5">
 
-        {/* Away Today — Absent + On Leave combined */}
-        {loading ? (
-          <div className="card p-5 fade-up">
-            <div className="flex items-center justify-between mb-4">
-              <div className="skeleton h-3 w-28 rounded" />
-              <div className="skeleton h-9 w-9 rounded-lg" />
+        {/* ── 3 KPI Cards ─────────────────────────────────────────────── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          {/* Present Card — with On Time embedded */}
+          {loading ? (
+            <div className="card p-5 fade-up">
+              <div className="flex items-center justify-between mb-4">
+                <div className="skeleton h-3 w-28 rounded" />
+                <div className="skeleton h-9 w-9 rounded-lg" />
+              </div>
+              <div className="skeleton h-8 w-16 rounded mb-2" />
+              <div className="skeleton h-3 w-32 rounded" />
             </div>
-            <div className="skeleton h-8 w-16 rounded mb-2" />
-            <div className="skeleton h-3 w-32 rounded" />
-          </div>
-        ) : (
-          <div
-            className="card p-5 fade-up hover:shadow-md transition-shadow duration-200"
-            style={{ borderTop: '3px solid #E24B4A', cursor: 'pointer' }}
-            onClick={() => navigate('/attendance?status=Absent')}
-          >
-            <div className="flex items-start justify-between mb-3">
-              <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
-                Away Today
-              </p>
-              <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
-                style={{ background: '#E24B4A18' }}>
-                <MdPersonOff size={18} style={{ color: '#E24B4A' }} />
+          ) : (
+            <div
+              className="card p-5 fade-up card-lift"
+              style={{ borderTop: '3px solid #1D9E75', cursor: 'pointer' }}
+              onClick={() => navigate('/attendance')}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  {mode === 'today' ? 'Present Today' : 'Present'}
+                </p>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: '#1D9E7518' }}>
+                  <MdPeople size={18} style={{ color: '#1D9E75' }} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
+                  {stats.present ?? '—'}
+                  {stats.total != null && (
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>/{stats.total}</span>
+                  )}
+                </p>
+                {mode === 'today' && stats.prev && (() => {
+                  const diff = (stats.present || 0) - stats.prev.present;
+                  const color = diff === 0 ? 'var(--text-muted)' : diff > 0 ? '#1D9E75' : '#E24B4A';
+                  return (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: diff === 0 ? 'var(--bg)' : `${color}14`, color }}>
+                      {diff === 0 ? '= same' : `${diff > 0 ? '▲ +' : '▼ '}${diff}`}
+                    </span>
+                  );
+                })()}
+              </div>
+              {/* On Time sub-line with mini ring */}
+              <div style={{ marginTop: 6 }}>
+                <OnTimeRing onTime={onTimeCount} total={stats.present || 0} />
               </div>
             </div>
-            <div className="flex items-baseline gap-2 mb-1.5">
-              <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
-                {stats.absent ?? '—'}
-                {stats.total > 0 && (
-                  <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>/{stats.total}</span>
-                )}
-              </p>
-              {mode === 'today' && stats.prev && (() => {
-                const diff = (stats.absent || 0) - stats.prev.absent;
-                const color = diff === 0 ? 'var(--text-muted)' : diff > 0 ? '#E24B4A' : '#1D9E75';
-                return (
-                  <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
-                    style={{ background: diff === 0 ? 'var(--bg)' : `${color}14`, color }}>
-                    {diff === 0 ? '= same' : `${diff > 0 ? '▲ +' : '▼ '}${diff}`}
-                  </span>
-                );
-              })()}
-            </div>
-            <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
-              <span style={{ color: '#8B5CF6', fontWeight: 700 }}>{stats.onLeave ?? 0}</span> approved leaves
-              {' · '}
-              <span style={{ color: '#E24B4A', fontWeight: 700 }}>{Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))}</span> absent
-            </p>
+          )}
+
+          {/* Late Card */}
+          <div onClick={() => navigate('/attendance?status=Late')} style={{ cursor: 'pointer' }}>
+            <StatCard
+              title={mode === 'today' ? 'Late Today' : 'Late'}
+              icon={MdAccessTime} color="#EF9F27"
+              value={stats.late ?? '—'}
+              sub={stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start'}
+              loading={loading}
+              delta={mode === 'today' && stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null}
+            />
           </div>
-        )}
+
+          {/* Away Card — Absent + On Leave */}
+          {loading ? (
+            <div className="card p-5 fade-up">
+              <div className="flex items-center justify-between mb-4">
+                <div className="skeleton h-3 w-28 rounded" />
+                <div className="skeleton h-9 w-9 rounded-lg" />
+              </div>
+              <div className="skeleton h-8 w-16 rounded mb-2" />
+              <div className="skeleton h-3 w-32 rounded" />
+            </div>
+          ) : (
+            <div
+              className="card p-5 fade-up card-lift"
+              style={{ borderTop: '3px solid #E24B4A', cursor: 'pointer' }}
+              onClick={() => navigate('/attendance?status=Absent')}
+            >
+              <div className="flex items-start justify-between mb-3">
+                <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--text-muted)' }}>
+                  {mode === 'today' ? 'Away Today' : 'Away'}
+                </p>
+                <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0"
+                  style={{ background: '#E24B4A18' }}>
+                  <MdPersonOff size={18} style={{ color: '#E24B4A' }} />
+                </div>
+              </div>
+              <div className="flex items-baseline gap-2 mb-1.5">
+                <p className="text-[28px] font-bold leading-none" style={{ color: 'var(--text)' }}>
+                  {stats.absent ?? '—'}
+                  {stats.total > 0 && (
+                    <span style={{ fontSize: 14, fontWeight: 600, color: 'var(--text-muted)' }}>/{stats.total}</span>
+                  )}
+                </p>
+                {mode === 'today' && stats.prev && (() => {
+                  const diff = (stats.absent || 0) - stats.prev.absent;
+                  const color = diff === 0 ? 'var(--text-muted)' : diff > 0 ? '#E24B4A' : '#1D9E75';
+                  return (
+                    <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full"
+                      style={{ background: diff === 0 ? 'var(--bg)' : `${color}14`, color }}>
+                      {diff === 0 ? '= same' : `${diff > 0 ? '▲ +' : '▼ '}${diff}`}
+                    </span>
+                  );
+                })()}
+              </div>
+              <p className="text-xs" style={{ color: 'var(--text-muted)' }}>
+                <span style={{ color: '#8B5CF6', fontWeight: 700 }}>{stats.onLeave ?? 0}</span> approved leaves
+                {' · '}
+                <span style={{ color: '#E24B4A', fontWeight: 700 }}>{Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))}</span> absent
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* ── Currently Working · Department Breakdown · Attendance Donut ── */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+
+          <div className="h-full">
+            <SectionCard
+              title={mode === 'today' ? 'Currently Working' : 'Clocked In'}
+              subtitle={mode === 'today' ? 'Clocked in · not yet clocked out'
+                : `Who was present on ${customDate ? getShortDate(customDate) : 'this day'}`}
+              action={
+                mode === 'today'
+                  ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                      <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                      Live
+                    </div>
+                  : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                      Historical
+                    </div>
+              }
+            >
+              {loading ? (
+                <div className="space-y-3">
+                  <div className="skeleton h-12 w-20 rounded" />
+                  {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 rounded-lg" />)}
+                </div>
+              ) : (
+                <>
+                  <p className="text-5xl font-black mb-1" style={{ color: '#1D9E75' }}>
+                    {currentlyWorking.count}
+                    {stats.present > 0 && (
+                      <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>/{stats.present}</span>
+                    )}
+                  </p>
+                  {stats.present > 0 && (
+                    <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
+                      of {stats.present} who clocked in today
+                    </p>
+                  )}
+                  <div className="space-y-1.5">
+                    {currentlyWorking.list.length === 0 ? (
+                      <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
+                    ) : (
+                      currentlyWorking.list.map(emp => (
+                        <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
+                          style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer' }}
+                          onClick={() => navigate(`/person?id=${emp.id}`)}
+                          onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
+                          onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
+                          <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
+                          <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
+                          <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
+                        </div>
+                      ))
+                    )}
+                    {currentlyWorking.count > currentlyWorking.list.length && (
+                      <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                        +{currentlyWorking.count - currentlyWorking.list.length} more
+                      </p>
+                    )}
+                  </div>
+                </>
+              )}
+            </SectionCard>
+          </div>
+
+          <div className="h-full">
+            <SectionCard title="Department Breakdown"
+              subtitle={mode === 'today' ? "Today's attendance by team"
+                : customDate ? `Attendance on ${getShortDate(customDate)} by team` : 'Attendance by team'}>
+              {loading ? (
+                <div className="space-y-3">
+                  {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
+                </div>
+              ) : deptBreakdown.length === 0 ? (
+                <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
+              ) : (
+                <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                      {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
+                        <th key={h} style={{
+                          fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
+                          textTransform: 'uppercase', letterSpacing: '0.06em',
+                          textAlign: h === 'Department' ? 'left' : 'center',
+                          paddingBottom: 8,
+                        }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {deptBreakdown.map(dept => (
+                      <DeptRow
+                        key={dept.department}
+                        dept={dept}
+                        onClick={dept.id ? () => navigate(`/attendance?dept=${dept.id}`) : undefined}
+                      />
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </SectionCard>
+          </div>
+
+          <div className="h-full">
+            <SectionCard title={mode === 'today' ? "Today's Attendance" : 'Attendance Breakdown'} subtitle="Present · Late · Absent · On Leave">
+              {loading ? (
+                <div className="skeleton h-44 rounded" />
+              ) : donutData.length === 0 ? (
+                <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
+                  <p className="text-sm">No attendance data</p>
+                </div>
+              ) : (
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 220 }}>
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}
+                        style={{ cursor: 'pointer' }}
+                        onClick={d => {
+                          const dest = { Present: '/attendance', 'On Leave': '/attendance?status=Absent', Absent: '/attendance?status=Absent' }[d?.name];
+                          if (dest) navigate(dest);
+                        }}
+                      >
+                        {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
+                      </Pie>
+                      <Tooltip formatter={(v, n) => [v, n]} />
+                      <Legend content={<DonutLegend />} />
+                    </PieChart>
+                  </ResponsiveContainer>
+                </div>
+              )}
+            </SectionCard>
+          </div>
+
+        </div>
+
+        {/* ── Late Arrivals — full width ──────────────────────────────── */}
+        <SectionCard
+          title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
+          subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
+          action={
+            !loading && (stats.late || 0) > 0 ? (
+              <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
+                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                View All →
+              </button>
+            ) : null
+          }
+        >
+          {loading ? (
+            <div className="space-y-3">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="flex gap-3 items-center">
+                  <div className="skeleton h-8 w-8 rounded-full" />
+                  <div className="flex-1 space-y-1.5">
+                    <div className="skeleton h-3 w-32 rounded" />
+                    <div className="skeleton h-2.5 w-20 rounded" />
+                  </div>
+                  <div className="skeleton h-6 w-14 rounded-full" />
+                </div>
+              ))}
+            </div>
+          ) : !data?.lateArrivals?.length ? (
+            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
+                <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
+              </svg>
+              <p className="text-sm font-medium">All employees arrived on time</p>
+            </div>
+          ) : (
+            <table className="data-table">
+              <thead>
+                <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th></tr>
+              </thead>
+              <tbody>
+                {data.lateArrivals.map(row => (
+                  <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}
+                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                    onMouseLeave={e => e.currentTarget.style.background = ''}>
+                    <td>
+                      <div>
+                        <p className="font-semibold text-[13px]" style={{ color: 'var(--text)' }}>{row.name}</p>
+                        <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{row.department}</p>
+                      </div>
+                    </td>
+                    <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
+                    <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
+                    <td>
+                      {row.delay_minutes > 0
+                        ? <span className="pill pill-red">+{row.delay_minutes}m</span>
+                        : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </SectionCard>
+
+      </div>{/* end Zone 2 tab-content */}
+
+
+      {/* ═══════════════════════════════════════════════════════════════════
+           ZONE 3 — Insights & Analytics (always visible)
+         ═══════════════════════════════════════════════════════════════════ */}
+
+      {/* Section divider */}
+      <div className="section-divider">
+        <div className="section-divider__line" />
+        <div className="section-divider__label">
+          <MdInsights size={14} style={{ color: 'var(--primary)' }} />
+          Insights & Analytics
+        </div>
+        <div className="section-divider__line" style={{ background: 'linear-gradient(270deg, var(--border) 0%, transparent 100%)' }} />
       </div>
 
-      {/* ── Month context strip (today mode only — "remaining" monthly data) ── */}
-      {mode === 'today' && !loading && (stats.monthHours != null || stats.activeProjects != null) && (() => {
+      {/* ── Monthly context strip ──────────────────────────────────────── */}
+      {!loading && (stats.monthHours != null || stats.activeProjects != null) && (() => {
         const now = new Date();
         const monthName = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
         return (
@@ -735,245 +968,6 @@ export default function Overview() {
           </div>
         );
       })()}
-
-      {/* ── Currently Working · Department Breakdown · Today's Attendance ── */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-
-        <div className="h-full">
-          <SectionCard
-            title={mode === 'today' ? 'Currently Working' : 'Clocked In'}
-            subtitle={mode === 'today' ? 'Clocked in · not yet clocked out'
-              : `Who was present on ${customDate ? new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' }) : 'this day'}`}
-            action={
-              mode === 'today'
-                ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                    <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                    Live
-                  </div>
-                : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                    Historical
-                  </div>
-            }
-          >
-            {loading ? (
-              <div className="space-y-3">
-                <div className="skeleton h-12 w-20 rounded" />
-                {Array.from({ length: 4 }).map((_, i) => <div key={i} className="skeleton h-8 rounded-lg" />)}
-              </div>
-            ) : (
-              <>
-                <p className="text-5xl font-black mb-1" style={{ color: '#1D9E75' }}>
-                  {currentlyWorking.count}
-                  {stats.present > 0 && (
-                    <span style={{ fontSize: 18, fontWeight: 700, color: 'var(--text-muted)' }}>/{stats.present}</span>
-                  )}
-                </p>
-                {stats.present > 0 && (
-                  <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>
-                    of {stats.present} who clocked in today
-                  </p>
-                )}
-                <div className="space-y-1.5">
-                  {currentlyWorking.list.length === 0 ? (
-                    <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No active sessions right now</p>
-                  ) : (
-                    currentlyWorking.list.map(emp => (
-                      <div key={emp.id} className="flex items-center gap-2.5 rounded-lg px-3 py-2"
-                        style={{ background: 'var(--bg)', border: '1px solid var(--border)', cursor: 'pointer' }}
-                        onClick={() => navigate(`/person?id=${emp.id}`)}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--primary)'}
-                        onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}>
-                        <span className="w-2 h-2 rounded-full shrink-0 animate-pulse" style={{ background: '#1D9E75' }} />
-                        <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--text)' }}>{emp.name}</span>
-                        <span className="text-xs" style={{ color: 'var(--text-muted)' }}>since {fmt(emp.clock_in_time)}</span>
-                      </div>
-                    ))
-                  )}
-                  {currentlyWorking.count > currentlyWorking.list.length && (
-                    <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                      +{currentlyWorking.count - currentlyWorking.list.length} more
-                    </p>
-                  )}
-                </div>
-              </>
-            )}
-          </SectionCard>
-        </div>
-
-        <div className="h-full">
-          <SectionCard title="Department Breakdown"
-            subtitle={mode === 'today' ? "Today's attendance by team"
-              : customDate ? `Attendance on ${new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} by team` : 'Attendance by team'}>
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
-              </div>
-            ) : deptBreakdown.length === 0 ? (
-              <p className="text-sm text-center py-6" style={{ color: 'var(--text-muted)' }}>No department data</p>
-            ) : (
-              <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
-                    {['Department', 'Present', 'Late', 'Absent', 'Rate'].map(h => (
-                      <th key={h} style={{
-                        fontSize: 10, fontWeight: 700, color: 'var(--text-muted)',
-                        textTransform: 'uppercase', letterSpacing: '0.06em',
-                        textAlign: h === 'Department' ? 'left' : 'center',
-                        paddingBottom: 8,
-                      }}>{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {deptBreakdown.map(dept => (
-                    <DeptRow
-                      key={dept.department}
-                      dept={dept}
-                      onClick={dept.id ? () => navigate(`/attendance?dept=${dept.id}`) : undefined}
-                    />
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-        </div>
-
-        <div className="h-full">
-          <SectionCard title={mode === 'today' ? "Today's Attendance" : 'Attendance Breakdown'} subtitle="Present · Late · Absent · On Leave">
-            {loading ? (
-              <div className="skeleton h-44 rounded" />
-            ) : donutData.length === 0 ? (
-              <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No attendance data</p>
-              </div>
-            ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', minHeight: 220 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={donutData} cx="50%" cy="45%" innerRadius={60} outerRadius={95} dataKey="value" paddingAngle={3}
-                      style={{ cursor: 'pointer' }}
-                      onClick={d => {
-                        const dest = { Present: '/attendance', 'On Leave': '/attendance?status=Absent', Absent: '/attendance?status=Absent' }[d?.name];
-                        if (dest) navigate(dest);
-                      }}
-                    >
-                      {donutData.map((_, i) => <Cell key={i} fill={DONUT_COLORS[i]} />)}
-                    </Pie>
-                    <Tooltip formatter={(v, n) => [v, n]} />
-                    <Legend content={<DonutLegend />} />
-                  </PieChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </SectionCard>
-        </div>
-
-      </div>
-
-      {/* ── Late Arrivals Today + Daily Hours ─────────────────────────── */}
-      <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-
-        {/* Late Arrivals */}
-        <div className="lg:col-span-3 h-full">
-          <SectionCard
-            title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
-            subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
-            action={
-              !loading && (stats.late || 0) > 0 ? (
-                <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
-                  style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                  View All →
-                </button>
-              ) : null
-            }
-          >
-            {loading ? (
-              <div className="space-y-3">
-                {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="flex gap-3 items-center">
-                    <div className="skeleton h-8 w-8 rounded-full" />
-                    <div className="flex-1 space-y-1.5">
-                      <div className="skeleton h-3 w-32 rounded" />
-                      <div className="skeleton h-2.5 w-20 rounded" />
-                    </div>
-                    <div className="skeleton h-6 w-14 rounded-full" />
-                  </div>
-                ))}
-              </div>
-            ) : !data?.lateArrivals?.length ? (
-              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
-                  <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
-                </svg>
-                <p className="text-sm font-medium">All employees arrived on time</p>
-              </div>
-            ) : (
-              <table className="data-table">
-                <thead>
-                  <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th></tr>
-                </thead>
-                <tbody>
-                  {data.lateArrivals.map(row => (
-                    <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}
-                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                      onMouseLeave={e => e.currentTarget.style.background = ''}>
-                      <td>
-                        <div>
-                          <p className="font-semibold text-[13px]" style={{ color: 'var(--text)' }}>{row.name}</p>
-                          <p className="text-[11px]" style={{ color: 'var(--text-muted)' }}>{row.department}</p>
-                        </div>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
-                      <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
-                      <td>
-                        {row.delay_minutes > 0
-                          ? <span className="pill pill-red">+{row.delay_minutes}m</span>
-                          : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </SectionCard>
-        </div>
-
-        {/* Daily Hours */}
-        <div className="lg:col-span-2 h-full">
-          <SectionCard
-            title="Daily Hours"
-            subtitle="Last 14 days"
-            action={
-              <div style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: sseOverview ? 'var(--primary)' : 'var(--text-muted)', fontWeight: 600 }}>
-                <MdSignalWifi4Bar size={13} style={{ opacity: sseOverview ? 1 : 0.4 }} />
-                {sseOverview ? 'Live' : 'Connecting…'}
-              </div>
-            }
-          >
-            {loading ? (
-              <div className="skeleton h-28 rounded" />
-            ) : dailyData.length === 0 ? (
-              <div className="text-center py-6" style={{ color: 'var(--text-muted)' }}>
-                <p className="text-sm">No hours logged yet</p>
-              </div>
-            ) : (
-              <div style={{ height: '100%', minHeight: 200 }}>
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={dailyData} margin={{ top: 20, right: 4, bottom: 0, left: -20 }}>
-                    <XAxis dataKey="name" tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} interval="preserveStartEnd" />
-                    <YAxis tick={{ fontSize: 10, fill: 'var(--text-muted)' }} axisLine={false} tickLine={false} />
-                    <Tooltip content={<DailyHoursTooltip />} cursor={{ fill: 'var(--bg)' }} />
-                    <Bar dataKey="hours" fill="var(--primary)" radius={[4, 4, 0, 0]} maxBarSize={28}>
-                      <LabelList dataKey="hours" position="top" style={{ fontSize: 9, fill: 'var(--text-muted)', fontWeight: 700 }} formatter={v => v > 0 ? Math.round(v) : ''} />
-                    </Bar>
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
-            )}
-          </SectionCard>
-        </div>
-      </div>
 
       {/* ── 30-day Attendance Trend + Project Health ───────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">

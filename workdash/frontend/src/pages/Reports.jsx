@@ -22,29 +22,44 @@ function fmtDateGroup(dateStr) {
 
 const DATE_PRESETS = {
   attendance: [
-    { id: 'today',     label: 'Today',        dates: () => ({ from: todayISO(), to: todayISO() }) },
-    { id: 'yesterday', label: 'Yesterday',    dates: () => ({ from: daysAgo(1),  to: daysAgo(1) }) },
-    { id: '7d',        label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
-    { id: '30d',       label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
-    { id: 'month',     label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+    { id: 'today',     label: 'Today',         icon: '📅', dates: () => ({ from: todayISO(), to: todayISO() }) },
+    { id: 'yesterday', label: 'Yesterday',     icon: '⏪', dates: () => ({ from: daysAgo(1),  to: daysAgo(1) }) },
+    { id: '7d',        label: 'Last 7 Days',   icon: '📊', dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',       label: 'Last 30 Days',  icon: '📈', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: '90d',       label: 'Last 90 Days',  icon: '📉', dates: () => ({ from: daysAgo(89), to: todayISO() }) },
+    { id: 'year',      label: 'This Year',     icon: '🗓️', dates: () => ({ from: `${new Date().getFullYear()}-01-01`, to: todayISO() }) },
+    { id: 'month',     label: 'This Month',    icon: '📋', dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
   ],
   'late-arrivals': [
-    { id: 'today',  label: 'Today',        dates: () => ({ from: todayISO(), to: todayISO() }) },
-    { id: '7d',     label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
-    { id: '30d',    label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
-    { id: 'month',  label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+    { id: 'today',  label: 'Today',         icon: '📅', dates: () => ({ from: todayISO(), to: todayISO() }) },
+    { id: '7d',     label: 'Last 7 Days',   icon: '📊', dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',    label: 'Last 30 Days',  icon: '📈', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: '90d',    label: 'Last 90 Days',  icon: '📉', dates: () => ({ from: daysAgo(89), to: todayISO() }) },
+    { id: 'year',   label: 'This Year',     icon: '🗓️', dates: () => ({ from: `${new Date().getFullYear()}-01-01`, to: todayISO() }) },
+    { id: 'month',  label: 'This Month',    icon: '📋', dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
   ],
   timesheet: [
-    { id: '7d',     label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
-    { id: '30d',    label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
-    { id: '90d',    label: 'Last 90 Days', dates: () => ({ from: daysAgo(89), to: todayISO() }) },
-    { id: 'month',  label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+    { id: '7d',     label: 'Last 7 Days',   icon: '📊', dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',    label: 'Last 30 Days',  icon: '📈', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: '90d',    label: 'Last 90 Days',  icon: '📉', dates: () => ({ from: daysAgo(89), to: todayISO() }) },
+    { id: 'year',   label: 'This Year',     icon: '🗓️', dates: () => ({ from: `${new Date().getFullYear()}-01-01`, to: todayISO() }) },
+    { id: 'month',  label: 'This Month',    icon: '📋', dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
   ],
 };
 
 const DATE_GROUP_TYPES = new Set(['attendance', 'late-arrivals', 'timesheet']);
 const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 function yearOpts() { const y = new Date().getFullYear(); return Array.from({ length: y - 2022 }, (_, i) => 2023 + i); }
+
+function fmtShortRange(from, to) {
+  if (!from || !to) return '';
+  const f = new Date(from + 'T00:00:00');
+  const t = new Date(to + 'T00:00:00');
+  const fStr = f.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  const tStr = t.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+  if (from === to) return fStr;
+  return `${fStr} – ${tStr}`;
+}
 
 // ─── Report type definitions ──────────────────────────────────────────────
 
@@ -774,26 +789,81 @@ export default function Reports() {
       {/* Filter bar + actions */}
       <div className="card px-5 py-4">
         {DATE_PRESETS[activeType] && (
-          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quick:</span>
+          <div className="quick-range-bar">
             {DATE_PRESETS[activeType].map(p => {
               const dates = p.dates();
               const isActive = filters.from === dates.from && filters.to === dates.to;
               return (
-                <button key={p.id} onClick={() => handleQuickApply(dates)}
-                  style={{
-                    height: 29, padding: '0 12px', borderRadius: 7, fontSize: 12, cursor: 'pointer',
-                    fontWeight: isActive ? 700 : 500,
-                    border: `1px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`,
-                    background: isActive ? 'var(--primary)' : 'transparent',
-                    color: isActive ? '#fff' : 'var(--text-secondary)',
-                    transition: 'all 0.12s',
-                  }}
-                >{p.label}</button>
+                <button
+                  key={p.id}
+                  onClick={() => handleQuickApply(dates)}
+                  className={`quick-range-btn ${isActive ? 'quick-range-btn--active' : ''}`}
+                >
+                  <span>{p.label}</span>
+                  {isActive && (
+                    <span className="quick-range-btn__date">
+                      {fmtShortRange(dates.from, dates.to)}
+                    </span>
+                  )}
+                </button>
               );
             })}
+            {/* Custom Range toggle */}
+            <button
+              onClick={() => {
+                // If custom is already selected (no preset match), clear to show pickers
+                // Otherwise just ensure the date inputs are visible
+                setFilters(f => ({ ...f, _customRange: !f._customRange }));
+              }}
+              className={`quick-range-btn ${filters._customRange ? 'quick-range-btn--active' : ''}`}
+              style={filters._customRange ? { background: '#7C3AED', borderColor: '#7C3AED', color: '#fff', boxShadow: '0 2px 8px rgba(124,58,237,0.25)' } : {}}
+            >
+              <MdCalendarToday size={14} />
+              Custom Range
+            </button>
           </div>
         )}
+
+        {/* Custom Range date pickers — visible when toggled */}
+        {filters._customRange && DATE_PRESETS[activeType] && (
+          <div style={{
+            display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end',
+            padding: '12px 0', marginBottom: 12,
+            borderBottom: '1px solid var(--border)',
+            animation: 'tabSlideIn 0.2s ease-out both',
+          }}>
+            <div>
+              <label style={labelStyle}>From Date</label>
+              <input
+                type="date"
+                value={filters.from || new Date().toISOString().slice(0, 10)}
+                onChange={e => setFilters(f => ({ ...f, from: e.target.value }))}
+                className="form-input"
+                style={{ minWidth: 150 }}
+              />
+            </div>
+            <div>
+              <label style={labelStyle}>To Date</label>
+              <input
+                type="date"
+                value={filters.to || new Date().toISOString().slice(0, 10)}
+                onChange={e => setFilters(f => ({ ...f, to: e.target.value }))}
+                className="form-input"
+                style={{ minWidth: 150 }}
+              />
+            </div>
+            <button
+              onClick={() => {
+                fetchData();
+              }}
+              className="btn btn-primary"
+              style={{ height: 36 }}
+            >
+              Apply Range
+            </button>
+          </div>
+        )}
+
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
           <FilterBar
             filters={filters}
