@@ -1014,84 +1014,153 @@ export default function Overview() {
 
         </div>
 
-        {/* ── Late Arrivals — full width with delay severity ────────── */}
-        <SectionCard
-          title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
-          subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
-          scrollable
-          maxScrollHeight={360}
-          action={
-            !loading && (stats.late || 0) > 0 ? (
-              <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
-                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                View All →
-              </button>
-            ) : null
-          }
-        >
-          {loading ? (
-            <div className="space-y-3">
-              {Array.from({ length: 5 }).map((_, i) => (
-                <div key={i} className="flex gap-3 items-center">
-                  <div className="skeleton h-8 w-8 rounded-full" />
-                  <div className="flex-1 space-y-1.5">
-                    <div className="skeleton h-3 w-32 rounded" />
-                    <div className="skeleton h-2.5 w-20 rounded" />
+        {/* ── Late Arrivals & Who's Away ── */}
+        <div className="grid-equal-row cols-2 stagger-enter">
+          
+          {/* Late Arrivals */}
+          <SectionCard
+            title={mode === 'today' ? 'Late Arrivals Today' : 'Late Arrivals'}
+            subtitle={loading ? '' : `${stats.late || 0} employee${stats.late !== 1 ? 's' : ''}`}
+            scrollable
+            maxScrollHeight={360}
+            action={
+              !loading && (stats.late || 0) > 0 ? (
+                <button onClick={() => navigate('/attendance?status=Late')} className="btn btn-ghost text-xs"
+                  style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                  View All →
+                </button>
+              ) : null
+            }
+          >
+            {loading ? (
+              <div className="space-y-3">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="flex gap-3 items-center">
+                    <div className="skeleton h-8 w-8 rounded-full" />
+                    <div className="flex-1 space-y-1.5">
+                      <div className="skeleton h-3 w-32 rounded" />
+                      <div className="skeleton h-2.5 w-20 rounded" />
+                    </div>
+                    <div className="skeleton h-6 w-14 rounded-full" />
                   </div>
-                  <div className="skeleton h-6 w-14 rounded-full" />
-                </div>
-              ))}
-            </div>
-          ) : !data?.lateArrivals?.length ? (
-            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
-                <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
-              </svg>
-              <p className="text-sm font-medium">All employees arrived on time</p>
-            </div>
-          ) : (
-            <table className="data-table">
-              <thead>
-                <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th><th style={{ width: 60 }}>Severity</th></tr>
-              </thead>
-              <tbody>
-                {data.lateArrivals.map(row => {
-                  const sev = delaySeverity(row.delay_minutes || 0);
-                  const barPct = Math.min(100, ((row.delay_minutes || 0) / 60) * 100);
+                ))}
+              </div>
+            ) : !data?.lateArrivals?.length ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
+                  <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
+                </svg>
+                <p className="text-sm font-medium">All employees arrived on time</p>
+              </div>
+            ) : (
+              <table className="data-table">
+                <thead>
+                  <tr><th>Employee</th><th>Role</th><th>Clock In</th><th>Delay</th></tr>
+                </thead>
+                <tbody>
+                  {data.lateArrivals.map(row => {
+                    const sev = delaySeverity(row.delay_minutes || 0);
+                    return (
+                      <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}>
+                        <td>
+                          <div className="flex items-center gap-2.5">
+                            <div className="avatar-initial" style={{ background: avatarColor(row.name) + '18', color: avatarColor(row.name), width: 30, height: 30, fontSize: 10 }}>
+                              {getInitials(row.name)}
+                            </div>
+                            <div>
+                              <p className="font-semibold text-[13px]" style={{ color: 'var(--text)', margin: 0 }}>{row.name}</p>
+                              <p className="text-[11px]" style={{ color: 'var(--text-muted)', margin: 0 }}>{row.department}</p>
+                            </div>
+                          </div>
+                        </td>
+                        <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
+                        <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
+                        <td>
+                          {row.delay_minutes > 0
+                            ? <span className={`delay-pill ${sev.cls}`}>+{row.delay_minutes}m</span>
+                            : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            )}
+          </SectionCard>
+
+          {/* Who's Away */}
+          <SectionCard
+            title={mode === 'today' ? "Who's Away Today" : 'Who Was Away'}
+            subtitle={loading ? '' : `${stats.absent || 0} away · ${stats.onLeave || 0} on leave · ${Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))} no record`}
+            scrollable
+            maxScrollHeight={360}
+            action={
+              (stats.absent || 0) > 0 ? (
+                <button onClick={() => navigate('/attendance?status=Absent')} className="btn btn-ghost text-xs"
+                  style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
+                  View All →
+                </button>
+              ) : null
+            }
+          >
+            {loading ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-9 rounded-lg" />)}
+              </div>
+            ) : !(data?.absentList?.length) ? (
+              <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
+                  <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
+                </svg>
+                <p className="text-sm font-medium">Everyone is in today</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {data.absentList.slice(0, 8).map(p => {
+                  const ac = avatarColor(p.name);
                   return (
-                    <tr key={row.id} onClick={() => navigate(`/person?id=${row.id}`)} style={{ cursor: 'pointer' }}>
-                      <td>
-                        <div className="flex items-center gap-2.5">
-                          <div className="avatar-initial" style={{ background: avatarColor(row.name) + '18', color: avatarColor(row.name), width: 30, height: 30, fontSize: 10 }}>
-                            {getInitials(row.name)}
-                          </div>
-                          <div>
-                            <p className="font-semibold text-[13px]" style={{ color: 'var(--text)', margin: 0 }}>{row.name}</p>
-                            <p className="text-[11px]" style={{ color: 'var(--text-muted)', margin: 0 }}>{row.department}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td style={{ color: 'var(--text-secondary)', fontSize: 12 }}>{row.designation || '—'}</td>
-                      <td className="font-semibold" style={{ color: 'var(--danger)' }}>{fmt(row.clock_in_time)}</td>
-                      <td>
-                        {row.delay_minutes > 0
-                          ? <span className={`delay-pill ${sev.cls}`}>+{row.delay_minutes}m</span>
-                          : <span style={{ color: 'var(--text-muted)', fontSize: 12 }}>—</span>}
-                      </td>
-                      <td>
-                        {row.delay_minutes > 0 && (
-                          <div className="delay-bar">
-                            <div className="delay-bar__fill" style={{ width: `${barPct}%`, background: sev.color }} />
-                          </div>
-                        )}
-                      </td>
-                    </tr>
+                    <div
+                      key={p.id}
+                      onClick={() => navigate(`/person?id=${p.id}`)}
+                      className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer"
+                      onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
+                      onMouseLeave={e => e.currentTarget.style.background = ''}
+                    >
+                      <div className="avatar-initial" style={{ background: ac + '18', color: ac, width: 26, height: 26, fontSize: 9 }}>
+                        {getInitials(p.name)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
+                        <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{p.department || '—'}</p>
+                      </div>
+                      {p.onLeave ? (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                          background: '#8B5CF614', color: '#8B5CF6', border: '1px solid #8B5CF633',
+                        }}>
+                          On Leave{p.leaveType ? ` · ${p.leaveType}` : ''}
+                        </span>
+                      ) : (
+                        <span style={{
+                          fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
+                          background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
+                        }}>
+                          No record
+                        </span>
+                      )}
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          )}
-        </SectionCard>
+                {(stats.absent || 0) > 8 && (
+                  <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
+                    +{(stats.absent || 0) - 8} more — View All
+                  </p>
+                )}
+              </div>
+            )}
+          </SectionCard>
+
+        </div>
 
       </div>{/* end Zone 2 tab-content */}
 
@@ -1260,7 +1329,7 @@ export default function Overview() {
       </div>
 
 
-      {/* ── Most Hours Logged + Who's Away Today ──────────────────────── */}
+      {/* ── Most Hours Logged ──────────────────────── */}
       <div className="grid-equal-row cols-2 stagger-enter">
 
         <SectionCard
@@ -1310,77 +1379,8 @@ export default function Overview() {
           )}
         </SectionCard>
 
-        {/* Who's Away Today — actual names with leave status */}
-        <SectionCard
-          title={mode === 'today' ? "Who's Away Today" : 'Who Was Away'}
-          subtitle={loading ? '' : `${stats.absent || 0} away · ${stats.onLeave || 0} on leave · ${Math.max(0, (stats.absent || 0) - (stats.onLeave || 0))} no record`}
-          scrollable
-          maxScrollHeight={300}
-          action={
-            (stats.absent || 0) > 0 ? (
-              <button onClick={() => navigate('/attendance?status=Absent')} className="btn btn-ghost text-xs"
-                style={{ color: 'var(--primary)', height: 28, padding: '0 10px' }}>
-                View All →
-              </button>
-            ) : null
-          }
-        >
-          {loading ? (
-            <div className="space-y-2">
-              {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-9 rounded-lg" />)}
-            </div>
-          ) : !(data?.absentList?.length) ? (
-            <div className="text-center py-10" style={{ color: 'var(--text-muted)' }}>
-              <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="#1D9E75" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ margin: '0 auto 8px' }}>
-                <circle cx="12" cy="12" r="10" /><polyline points="9 12 11 14 15 10" />
-              </svg>
-              <p className="text-sm font-medium">Everyone is in today</p>
-            </div>
-          ) : (
-            <div className="space-y-1">
-              {data.absentList.slice(0, 8).map(p => {
-                const ac = avatarColor(p.name);
-                return (
-                  <div
-                    key={p.id}
-                    onClick={() => navigate(`/person?id=${p.id}`)}
-                    className="flex items-center gap-3 rounded-lg px-2.5 py-2 cursor-pointer"
-                    onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                    onMouseLeave={e => e.currentTarget.style.background = ''}
-                  >
-                    <div className="avatar-initial" style={{ background: ac + '18', color: ac, width: 26, height: 26, fontSize: 9 }}>
-                      {getInitials(p.name)}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
-                      <p className="text-[11px] truncate" style={{ color: 'var(--text-muted)', margin: 0 }}>{p.department || '—'}</p>
-                    </div>
-                    {p.onLeave ? (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
-                        background: '#8B5CF614', color: '#8B5CF6', border: '1px solid #8B5CF633',
-                      }}>
-                        On Leave{p.leaveType ? ` · ${p.leaveType}` : ''}
-                      </span>
-                    ) : (
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 999, whiteSpace: 'nowrap',
-                        background: '#FEF2F2', color: '#DC2626', border: '1px solid #FECACA',
-                      }}>
-                        No record
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-              {(stats.absent || 0) > 8 && (
-                <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                  +{(stats.absent || 0) - 8} more — View All
-                </p>
-              )}
-            </div>
-          )}
-        </SectionCard>
+        {/* Empty placeholder for grid alignment */}
+        <div></div>
 
       </div>
 
