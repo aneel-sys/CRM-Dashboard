@@ -1330,7 +1330,7 @@ export default function Overview() {
 
 
       {/* ── Most Hours Logged ──────────────────────── */}
-      <div className="grid-equal-row cols-2 stagger-enter">
+      <div className="stagger-enter">
 
         <SectionCard
           title="Most Hours Logged"
@@ -1378,9 +1378,6 @@ export default function Overview() {
             </div>
           )}
         </SectionCard>
-
-        {/* Empty placeholder for grid alignment */}
-        <div></div>
 
       </div>
 
