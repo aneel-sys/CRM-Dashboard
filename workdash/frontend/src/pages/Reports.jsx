@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { useOutletContext } from 'react-router-dom';
+import { useOutletContext, useNavigate } from 'react-router-dom';
 import {
   MdDownload, MdFilterList, MdDragIndicator, MdVisibility, MdVisibilityOff,
   MdAccessTime, MdCalendarToday, MdSummarize, MdSchedule,
@@ -10,6 +10,41 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import api from '../api/axios';
 import { useToast } from '../components/Toast';
+
+// ─── Date helpers & quick-apply presets ──────────────────────────────────────
+
+function todayISO() { return new Date().toISOString().slice(0, 10); }
+function daysAgo(n) { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); }
+function firstOfMonth() { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), 1).toISOString().slice(0, 10); }
+function fmtDateGroup(dateStr) {
+  return new Date(dateStr + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+const DATE_PRESETS = {
+  attendance: [
+    { id: 'today',     label: 'Today',        dates: () => ({ from: todayISO(), to: todayISO() }) },
+    { id: 'yesterday', label: 'Yesterday',    dates: () => ({ from: daysAgo(1),  to: daysAgo(1) }) },
+    { id: '7d',        label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',       label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: 'month',     label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+  ],
+  'late-arrivals': [
+    { id: 'today',  label: 'Today',        dates: () => ({ from: todayISO(), to: todayISO() }) },
+    { id: '7d',     label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',    label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: 'month',  label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+  ],
+  timesheet: [
+    { id: '7d',     label: 'Last 7 Days',  dates: () => ({ from: daysAgo(6),  to: todayISO() }) },
+    { id: '30d',    label: 'Last 30 Days', dates: () => ({ from: daysAgo(29), to: todayISO() }) },
+    { id: '90d',    label: 'Last 90 Days', dates: () => ({ from: daysAgo(89), to: todayISO() }) },
+    { id: 'month',  label: 'This Month',   dates: () => ({ from: firstOfMonth(), to: todayISO() }) },
+  ],
+};
+
+const DATE_GROUP_TYPES = new Set(['attendance', 'late-arrivals', 'timesheet']);
+const MONTH_NAMES = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+function yearOpts() { const y = new Date().getFullYear(); return Array.from({ length: y - 2022 }, (_, i) => 2023 + i); }
 
 // ─── Report type definitions ──────────────────────────────────────────────
 
@@ -255,39 +290,63 @@ function AttendanceFilters({ filters, setFilters, departments, employees }) {
           <option value="">All</option>
           <option>On Time</option>
           <option>Late</option>
-          <option>Absent</option>
         </select>
       </div>
     </>
   );
 }
 
-function LateArrivalsFilters({ filters, setFilters, departments }) {
+function LateArrivalsFilters({ filters, setFilters, departments, employees }) {
   return (
     <>
       <DateRange filters={filters} setFilters={setFilters} />
       <DeptSelect departments={departments} value={filters.department_id || ''} onChange={v => setFilters(f => ({ ...f, department_id: v }))} />
+      <EmployeeSelect employees={employees} value={filters.user_id || ''} onChange={v => setFilters(f => ({ ...f, user_id: v }))} />
+      <div>
+        <label style={labelStyle}>Min Delay</label>
+        <select value={filters.min_delay || ''} onChange={e => setFilters(f => ({ ...f, min_delay: e.target.value }))} className="form-input form-select" style={{ paddingRight: 28, minWidth: 130 }}>
+          <option value="">Any delay</option>
+          <option value="15">&gt; 15 minutes</option>
+          <option value="30">&gt; 30 minutes</option>
+          <option value="60">&gt; 1 hour</option>
+          <option value="120">&gt; 2 hours</option>
+        </select>
+      </div>
     </>
   );
 }
 
 function MonthlySummaryFilters({ filters, setFilters, departments }) {
   const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear  = now.getFullYear();
   return (
     <>
       <div>
         <label style={labelStyle}>Month</label>
-        <input type="number" min={1} max={12} value={filters.month || now.getMonth() + 1}
-          onChange={e => setFilters(f => ({ ...f, month: e.target.value }))}
-          className="form-input" style={{ width: 70 }} />
+        <select value={filters.month || curMonth} onChange={e => setFilters(f => ({ ...f, month: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28, minWidth: 130 }}>
+          {MONTH_NAMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+        </select>
       </div>
       <div>
         <label style={labelStyle}>Year</label>
-        <input type="number" min={2020} max={2099} value={filters.year || now.getFullYear()}
-          onChange={e => setFilters(f => ({ ...f, year: e.target.value }))}
-          className="form-input" style={{ width: 88 }} />
+        <select value={filters.year || curYear} onChange={e => setFilters(f => ({ ...f, year: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28 }}>
+          {yearOpts().map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
       </div>
       <DeptSelect departments={departments} value={filters.department_id || ''} onChange={v => setFilters(f => ({ ...f, department_id: v }))} />
+      <div>
+        <label style={labelStyle}>Attendance</label>
+        <select value={filters.att_threshold || ''} onChange={e => setFilters(f => ({ ...f, att_threshold: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28, minWidth: 145 }}>
+          <option value="">All Employees</option>
+          <option value="75">Below 75%</option>
+          <option value="50">Below 50%</option>
+          <option value="100">Perfect (100%)</option>
+        </select>
+      </div>
     </>
   );
 }
@@ -310,22 +369,63 @@ function TimesheetFilters({ filters, setFilters, employees, projects }) {
 
 function ProjectsFilters({ filters, setFilters }) {
   return (
-    <div>
-      <label style={labelStyle}>Status</label>
-      <select value={filters.status || ''} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="form-input form-select" style={{ paddingRight: 28 }}>
-        <option value="">All Statuses</option>
-        <option value="not started">Not Started</option>
-        <option value="in progress">In Progress</option>
-        <option value="on hold">On Hold</option>
-        <option value="finished">Finished</option>
-        <option value="cancelled">Cancelled</option>
-      </select>
-    </div>
+    <>
+      <div>
+        <label style={labelStyle}>Status</label>
+        <select value={filters.status || ''} onChange={e => setFilters(f => ({ ...f, status: e.target.value }))} className="form-input form-select" style={{ paddingRight: 28, minWidth: 130 }}>
+          <option value="">All Statuses</option>
+          <option value="not started">Not Started</option>
+          <option value="in progress">In Progress</option>
+          <option value="on hold">On Hold</option>
+          <option value="finished">Finished</option>
+          <option value="cancelled">Cancelled</option>
+        </select>
+      </div>
+      <div>
+        <label style={labelStyle}>Health</label>
+        <select value={filters.health || ''} onChange={e => setFilters(f => ({ ...f, health: e.target.value }))} className="form-input form-select" style={{ paddingRight: 28, minWidth: 120 }}>
+          <option value="">All</option>
+          <option value="On Track">On Track</option>
+          <option value="At Risk">At Risk</option>
+          <option value="Overdue">Overdue</option>
+        </select>
+      </div>
+    </>
   );
 }
 
 function TeamFilters({ filters, setFilters, departments }) {
-  return <DeptSelect departments={departments} value={filters.department_id || ''} onChange={v => setFilters(f => ({ ...f, department_id: v }))} />;
+  const now = new Date();
+  const curMonth = now.getMonth() + 1;
+  const curYear  = now.getFullYear();
+  return (
+    <>
+      <div>
+        <label style={labelStyle}>Month</label>
+        <select value={filters.month || curMonth} onChange={e => setFilters(f => ({ ...f, month: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28, minWidth: 130 }}>
+          {MONTH_NAMES.map((m, i) => <option key={i + 1} value={i + 1}>{m}</option>)}
+        </select>
+      </div>
+      <div>
+        <label style={labelStyle}>Year</label>
+        <select value={filters.year || curYear} onChange={e => setFilters(f => ({ ...f, year: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28 }}>
+          {yearOpts().map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+      </div>
+      <DeptSelect departments={departments} value={filters.department_id || ''} onChange={v => setFilters(f => ({ ...f, department_id: v }))} />
+      <div>
+        <label style={labelStyle}>Show</label>
+        <select value={filters.att_threshold || ''} onChange={e => setFilters(f => ({ ...f, att_threshold: e.target.value }))}
+          className="form-input form-select" style={{ paddingRight: 28, minWidth: 165 }}>
+          <option value="">All Employees</option>
+          <option value="75">Below 75% attendance</option>
+          <option value="50">Below 50% attendance</option>
+        </select>
+      </div>
+    </>
+  );
 }
 
 // helpers
@@ -387,6 +487,7 @@ const FILTERS_COMPONENT = {
 export default function Reports() {
   const { refreshKey } = useOutletContext();
   const toast = useToast();
+  const navigate = useNavigate();
 
   const [activeType, setActiveType]   = useState('attendance');
   const [filters, setFilters]         = useState({});
@@ -431,6 +532,21 @@ export default function Reports() {
     } finally { setLoading(false); }
   }, [activeType, filters]);
 
+  const handleQuickApply = useCallback(async (extraFilters) => {
+    const newFilters = { ...filters, ...extraFilters };
+    setFilters(newFilters);
+    setLoading(true);
+    setPage(1);
+    try {
+      const params = new URLSearchParams(Object.entries(newFilters).filter(([, v]) => v));
+      const res = await api.get(`/reports/${activeType}?${params}`);
+      setRows(res.data.rows || []);
+      setMeta(res.data);
+    } catch (err) {
+      toast(err.response?.data?.message || 'Failed to load report');
+    } finally { setLoading(false); }
+  }, [activeType, filters]);
+
   const [exportMenuOpen, setExportMenuOpen] = useState(false);
 
   const handleExportExcel = async () => {
@@ -467,8 +583,21 @@ export default function Reports() {
         ? `"${s.replace(/"/g, '""')}"` : s;
     };
     const header = visCols.map(c => escape(c.label)).join(',');
-    const body   = rows.map(row => visCols.map(c => escape(row[c.key] ?? '')).join(',')).join('\n');
-    const csv    = '﻿' + header + '\n' + body; // BOM for Excel UTF-8
+    let bodyLines;
+    if (DATE_GROUP_TYPES.has(activeType)) {
+      bodyLines = [];
+      let lastDate = null;
+      rows.forEach(row => {
+        if (row.date !== lastDate) {
+          lastDate = row.date;
+          bodyLines.push(escape(fmtDateGroup(row.date)));
+        }
+        bodyLines.push(visCols.map(c => escape(row[c.key] ?? '')).join(','));
+      });
+    } else {
+      bodyLines = rows.map(row => visCols.map(c => escape(row[c.key] ?? '')).join(','));
+    }
+    const csv    = '﻿' + header + '\n' + bodyLines.join('\n');
     const blob   = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
     const url    = URL.createObjectURL(blob);
     const a      = document.createElement('a');
@@ -503,15 +632,39 @@ export default function Reports() {
     doc.text(period, 40, 56);
     doc.text(`${rows.length} record${rows.length !== 1 ? 's' : ''}`, 40, 69);
 
+    // Table body — grouped by date for date-range reports
+    let pdfBody;
+    if (DATE_GROUP_TYPES.has(activeType)) {
+      pdfBody = [];
+      let lastDate = null;
+      rows.forEach(row => {
+        if (row.date !== lastDate) {
+          lastDate = row.date;
+          pdfBody.push([{
+            content: fmtDateGroup(row.date),
+            colSpan: visCols.length,
+            styles: { fillColor: [243, 244, 246], fontStyle: 'bold', textColor: [55, 65, 81], fontSize: 8 },
+          }]);
+        }
+        pdfBody.push(visCols.map(c => {
+          const v = row[c.key];
+          if (v === null || v === undefined || v === '') return '—';
+          return String(v);
+        }));
+      });
+    } else {
+      pdfBody = rows.map(row => visCols.map(c => {
+        const v = row[c.key];
+        if (v === null || v === undefined || v === '') return '—';
+        return String(v);
+      }));
+    }
+
     // Table
     autoTable(doc, {
       startY: 82,
       head: [visCols.map(c => c.label)],
-      body: rows.map(row => visCols.map(c => {
-        const v = row[c.key];
-        if (v === null || v === undefined || v === '') return '—';
-        return String(v);
-      })),
+      body: pdfBody,
       styles: {
         fontSize: 8,
         cellPadding: 4,
@@ -620,6 +773,27 @@ export default function Reports() {
 
       {/* Filter bar + actions */}
       <div className="card px-5 py-4">
+        {DATE_PRESETS[activeType] && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 6, marginBottom: 14, paddingBottom: 12, borderBottom: '1px solid var(--border)' }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: 'var(--text-muted)', marginRight: 4, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Quick:</span>
+            {DATE_PRESETS[activeType].map(p => {
+              const dates = p.dates();
+              const isActive = filters.from === dates.from && filters.to === dates.to;
+              return (
+                <button key={p.id} onClick={() => handleQuickApply(dates)}
+                  style={{
+                    height: 29, padding: '0 12px', borderRadius: 7, fontSize: 12, cursor: 'pointer',
+                    fontWeight: isActive ? 700 : 500,
+                    border: `1px solid ${isActive ? 'var(--primary)' : 'var(--border)'}`,
+                    background: isActive ? 'var(--primary)' : 'transparent',
+                    color: isActive ? '#fff' : 'var(--text-secondary)',
+                    transition: 'all 0.12s',
+                  }}
+                >{p.label}</button>
+              );
+            })}
+          </div>
+        )}
         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, alignItems: 'flex-end' }}>
           <FilterBar
             filters={filters}
@@ -830,21 +1004,61 @@ export default function Reports() {
                   </tr>
                 </thead>
                 <tbody>
-                  {paged.map((row, i) => (
-                    <tr
-                      key={i}
-                      style={{
-                        borderBottom: '1px solid var(--border)',
-                        background: i % 2 === 1 ? 'var(--bg)' : 'transparent',
-                      }}
-                    >
-                      {visibleCols.map(col => (
-                        <td key={col.key} style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
-                          {renderCell(col.key, row[col.key], row)}
-                        </td>
-                      ))}
-                    </tr>
-                  ))}
+                  {(() => {
+                    const grouped = DATE_GROUP_TYPES.has(activeType);
+                    let lastDate = null;
+                    let dataRowIdx = 0;
+                    return paged.map((row, i) => {
+                      const cells = visibleCols.map(col => {
+                        let content;
+                        if ((col.key === 'name' || col.key === 'employee') && (row.id || row.user_id)) {
+                          const uid = row.id || row.user_id;
+                          content = (
+                            <span style={{ color: 'var(--primary)', cursor: 'pointer', fontWeight: 600 }}
+                              onClick={() => navigate(`/person?id=${uid}`)}>
+                              {row[col.key]}
+                            </span>
+                          );
+                        } else {
+                          content = renderCell(col.key, row[col.key], row);
+                        }
+                        return (
+                          <td key={col.key} style={{ padding: '9px 14px', whiteSpace: 'nowrap' }}>
+                            {content}
+                          </td>
+                        );
+                      });
+                      const dataRow = (
+                        <tr key={`r-${i}`}
+                          style={{ borderBottom: '1px solid var(--border)', background: dataRowIdx % 2 === 1 ? 'var(--bg)' : 'transparent' }}>
+                          {cells}
+                        </tr>
+                      );
+                      dataRowIdx++;
+                      if (grouped && row.date !== lastDate) {
+                        lastDate = row.date;
+                        dataRowIdx = 0;
+                        return [
+                          <tr key={`d-${row.date}-${i}`}>
+                            <td colSpan={visibleCols.length} style={{
+                              padding: '7px 14px',
+                              background: 'var(--bg)',
+                              fontWeight: 700,
+                              fontSize: 11,
+                              color: 'var(--text-secondary)',
+                              borderTop: i > 0 ? '2px solid var(--border)' : undefined,
+                              textTransform: 'uppercase',
+                              letterSpacing: '0.05em',
+                            }}>
+                              {fmtDateGroup(row.date)}
+                            </td>
+                          </tr>,
+                          dataRow,
+                        ];
+                      }
+                      return dataRow;
+                    });
+                  })()}
                 </tbody>
               </table>
             </div>

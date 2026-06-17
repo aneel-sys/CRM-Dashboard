@@ -102,16 +102,18 @@ async function fetchAttendance(q) {
 }
 
 async function fetchLateArrivals(q) {
-  const today  = new Date().toISOString().slice(0, 10);
-  const from   = q.from   || today;
-  const to     = q.to     || today;
-  const deptId = q.department_id || null;
+  const today    = new Date().toISOString().slice(0, 10);
+  const from     = q.from          || today;
+  const to       = q.to            || today;
+  const deptId   = q.department_id || null;
+  const userId   = q.user_id       || null;
+  const minDelay = q.min_delay ? parseInt(q.min_delay) : null;
 
   const settings = await getOfficeSettings();
   const fallback = (() => { const [h,m] = settings.officeStart.split(':').map(Number); return h*60+m; })();
 
   let sql = `
-    SELECT u.name, d.team_name as department,
+    SELECT u.id as user_id, u.name, d.team_name as department,
            DATE_FORMAT(a.clock_in_time, '%Y-%m-%d') as date,
            a.clock_in_time, ess.shift_start_time
     FROM ${tbl('attendances')} a
@@ -122,6 +124,7 @@ async function fetchLateArrivals(q) {
     WHERE DATE(a.clock_in_time) BETWEEN ? AND ? AND a.late = 'yes'`;
   const params = [from, to];
   if (deptId) { sql += ' AND ed.department_id = ?'; params.push(deptId); }
+  if (userId) { sql += ' AND u.id = ?'; params.push(userId); }
   sql += ' ORDER BY DATE(a.clock_in_time) DESC, u.name ASC LIMIT 5000';
 
   const [rows] = await pool.query(sql, params);
@@ -137,7 +140,8 @@ async function fetchLateArrivals(q) {
     r.clock_in_fmt = r.clock_in_time ? fmtDateIST(r.clock_in_time) : '—';
     r.delay_fmt    = fmtDelay(r.delay_minutes);
   });
-  return { rows, count: rows.length };
+  const filtered = minDelay ? rows.filter(r => r.delay_minutes >= minDelay) : rows;
+  return { rows: filtered, count: filtered.length };
 }
 
 async function fetchMonthlySummary(q) {
@@ -176,7 +180,11 @@ async function fetchMonthlySummary(q) {
     r.avg_hours      = parseFloat(r.avg_hours)   || 0;
     r.attendance_pct = wDays > 0 ? Math.round((r.days_present / wDays) * 100) : 0;
   });
-  return { rows, count: rows.length, workingDays: wDays, month, year };
+  const attThreshold = q.att_threshold ? parseInt(q.att_threshold) : null;
+  const filtered = attThreshold !== null
+    ? (attThreshold === 100 ? rows.filter(r => r.attendance_pct === 100) : rows.filter(r => r.attendance_pct < attThreshold))
+    : rows;
+  return { rows: filtered, count: filtered.length, workingDays: wDays, month, year };
 }
 
 async function fetchTimesheet(q) {
@@ -234,14 +242,17 @@ async function fetchProjects(q) {
              : r.days_remaining <= 7 ? 'At Risk'
              : 'On Track';
   });
-  return { rows, count: rows.length };
+  const health = q.health || null;
+  const filtered = health ? rows.filter(r => r.health === health) : rows;
+  return { rows: filtered, count: filtered.length };
 }
 
 async function fetchTeam(q) {
   const now    = new Date();
-  const month  = now.getMonth() + 1;
-  const year   = now.getFullYear();
+  const month  = parseInt(q.month) || now.getMonth() + 1;
+  const year   = parseInt(q.year)  || now.getFullYear();
   const deptId = q.department_id || null;
+  const attThreshold = q.att_threshold ? parseInt(q.att_threshold) : null;
   const wDays  = await workingDaysInMonth(year, month);
   const tblName = await detectTimesheetTable();
 
@@ -273,7 +284,10 @@ async function fetchTeam(q) {
     r.attendance_pct     = wDays > 0 ? Math.round((r.this_month_present / wDays) * 100) : 0;
     r.join_date          = fmtDate(r.join_date);
   });
-  return { rows, count: rows.length, workingDays: wDays };
+  const filtered = attThreshold !== null
+    ? (attThreshold === 100 ? rows.filter(r => r.attendance_pct === 100) : rows.filter(r => r.attendance_pct < attThreshold))
+    : rows;
+  return { rows: filtered, count: filtered.length, workingDays: wDays };
 }
 
 const FETCHERS = {
@@ -460,22 +474,55 @@ router.get('/export', requireAuth, async (req, res) => {
     });
     headerRow.height = 22;
 
-    rows.forEach((row, i) => {
-      const dr = ws.addRow(cols.map(c => {
-        const v = row[c.key];
-        if (v === null || v === undefined || v === '') return '—';
-        return v;
-      }));
-      if (i % 2 === 1) {
+    const DATE_GROUP_TYPES = new Set(['attendance', 'late-arrivals', 'timesheet']);
+    const fmtDateGroup = d => new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+    if (DATE_GROUP_TYPES.has(type)) {
+      let lastDate = null;
+      let rowIdx = 0;
+      rows.forEach(row => {
+        if (row.date !== lastDate) {
+          lastDate = row.date;
+          const gr = ws.addRow([fmtDateGroup(row.date)]);
+          if (cols.length > 1) ws.mergeCells(gr.number, 1, gr.number, cols.length);
+          gr.getCell(1).font      = { bold: true, size: 10, color: { argb: 'FF374151' } };
+          gr.getCell(1).fill      = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3F4F6' } };
+          gr.getCell(1).alignment = { vertical: 'middle', horizontal: 'left', indent: 1 };
+          gr.height = 19;
+          rowIdx = 0;
+        }
+        const dr = ws.addRow(cols.map(c => {
+          const v = row[c.key];
+          if (v === null || v === undefined || v === '') return '—';
+          return v;
+        }));
+        if (rowIdx % 2 === 1) {
+          dr.eachCell(cell => { cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } }; });
+        }
         dr.eachCell(cell => {
-          cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+          cell.alignment = { vertical: 'middle' };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'FFE5E7EB' } } };
         });
-      }
-      dr.eachCell(cell => {
-        cell.alignment = { vertical: 'middle' };
-        cell.border    = { bottom: { style: 'hair', color: { argb: 'FFE5E7EB' } } };
+        rowIdx++;
       });
-    });
+    } else {
+      rows.forEach((row, i) => {
+        const dr = ws.addRow(cols.map(c => {
+          const v = row[c.key];
+          if (v === null || v === undefined || v === '') return '—';
+          return v;
+        }));
+        if (i % 2 === 1) {
+          dr.eachCell(cell => {
+            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF9FAFB' } };
+          });
+        }
+        dr.eachCell(cell => {
+          cell.alignment = { vertical: 'middle' };
+          cell.border    = { bottom: { style: 'hair', color: { argb: 'FFE5E7EB' } } };
+        });
+      });
+    }
 
     cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.width || 16; });
 
