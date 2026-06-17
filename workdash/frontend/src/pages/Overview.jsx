@@ -7,7 +7,7 @@ import {
 } from 'recharts';
 import {
   MdPeople, MdAccessTime, MdPersonOff, MdAvTimer, MdBeachAccess, MdWork, MdSignalWifi4Bar,
-  MdTrendingUp, MdFolderOpen, MdEmojiEvents,
+  MdTrendingUp, MdFolderOpen, MdEmojiEvents, MdCheckCircle,
 } from 'react-icons/md';
 import StatCard from '../components/StatCard';
 import { useToast } from '../components/Toast';
@@ -614,17 +614,28 @@ export default function Overview() {
         customDate={customDate} onCustomDateChange={setCustomDate}
       />
 
-      {/* ── KPI stat cards (5) ─────────────────────────────────────────── */}
+      {/* ── KPI stat cards — all daily metrics for the selected date ──── */}
       <div className="grid grid-cols-2 xl:grid-cols-4 gap-4">
         {[
-          { title: mode === 'today' ? 'Present Today' : 'Present',    icon: MdPeople,     color: '#1D9E75', value: stats.present ?? '—',
-            sub: stats.total !== undefined ? `of ${stats.total} employees` : '—', to: '/attendance',
+          { title: mode === 'today' ? 'Present Today' : 'Present',
+            icon: MdPeople,       color: '#1D9E75',
+            value: stats.present ?? '—',
+            sub: stats.total !== undefined ? `of ${stats.total} employees` : '—',
+            to: '/attendance',
             delta: mode === 'today' && stats.prev ? { diff: (stats.present || 0) - stats.prev.present } : null },
-          { title: mode === 'today' ? 'Late Today' : 'Late',          icon: MdAccessTime, color: '#EF9F27', value: stats.late    ?? '—',
-            sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start', to: '/attendance?status=Late',
+          { title: mode === 'today' ? 'Late Today' : 'Late',
+            icon: MdAccessTime,   color: '#EF9F27',
+            value: stats.late ?? '—',
+            sub: stats.present ? `of ${stats.present} who clocked in` : 'arrived after office start',
+            to: '/attendance?status=Late',
             delta: mode === 'today' && stats.prev ? { diff: (stats.late || 0) - stats.prev.late, invert: true } : null },
-          { title: 'Hours This Month', icon: MdAvTimer, color: '#378ADD', value: stats.monthHours != null ? `${stats.monthHours}h` : '—',
-            sub: 'across all projects', to: '/timings' },
+          { title: mode === 'today' ? 'On Time Today' : 'On Time',
+            icon: MdCheckCircle,  color: '#1D9E75',
+            value: stats.present != null && stats.late != null ? Math.max(0, stats.present - stats.late) : '—',
+            sub: stats.present > 0
+              ? `${Math.round((Math.max(0, stats.present - stats.late) / stats.present) * 100)}% on-time rate`
+              : 'clocked in before start',
+            to: '/attendance' },
         ].map(card => (
           <div key={card.title} onClick={() => navigate(card.to)} style={{ cursor: 'pointer' }}>
             <StatCard title={card.title} icon={card.icon} color={card.color} value={card.value} sub={card.sub} loading={loading} delta={card.delta} />
@@ -682,6 +693,48 @@ export default function Overview() {
           </div>
         )}
       </div>
+
+      {/* ── Month context strip (today mode only — "remaining" monthly data) ── */}
+      {mode === 'today' && !loading && (stats.monthHours != null || stats.activeProjects != null) && (() => {
+        const now = new Date();
+        const monthName = now.toLocaleDateString('en-GB', { month: 'long', year: 'numeric' });
+        return (
+          <div style={{
+            background: 'var(--bg)',
+            border: '1px solid var(--border)',
+            borderRadius: 10,
+            padding: '10px 20px',
+            display: 'flex',
+            flexWrap: 'wrap',
+            alignItems: 'center',
+            gap: 6,
+          }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginRight: 6 }}>
+              {monthName}
+            </span>
+            {stats.monthHours != null && (
+              <span
+                onClick={() => navigate('/timings')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 10px', borderRadius: 999, background: '#378ADD14', border: '1px solid #378ADD30' }}
+              >
+                <MdAvTimer size={13} style={{ color: '#378ADD' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#378ADD' }}>{stats.monthHours}h</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>logged this month</span>
+              </span>
+            )}
+            {stats.activeProjects != null && (
+              <span
+                onClick={() => navigate('/projects')}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'pointer', padding: '3px 10px', borderRadius: 999, background: '#E24B4A14', border: '1px solid #E24B4A30' }}
+              >
+                <MdFolderOpen size={13} style={{ color: '#E24B4A' }} />
+                <span style={{ fontSize: 12, fontWeight: 700, color: '#E24B4A' }}>{stats.activeProjects}</span>
+                <span style={{ fontSize: 11, color: 'var(--text-muted)' }}>active projects</span>
+              </span>
+            )}
+          </div>
+        );
+      })()}
 
       {/* ── Currently Working · Department Breakdown · Today's Attendance ── */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -748,7 +801,9 @@ export default function Overview() {
         </div>
 
         <div className="h-full">
-          <SectionCard title="Department Breakdown" subtitle="Today's attendance by team">
+          <SectionCard title="Department Breakdown"
+            subtitle={mode === 'today' ? "Today's attendance by team"
+              : customDate ? `Attendance on ${new Date(customDate + 'T00:00:00').toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })} by team` : 'Attendance by team'}>
             {loading ? (
               <div className="space-y-3">
                 {Array.from({ length: 5 }).map((_, i) => <div key={i} className="skeleton h-8 rounded" />)}
