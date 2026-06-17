@@ -837,14 +837,39 @@ export default function Overview() {
             scrollable
             maxScrollHeight={320}
             action={
-              mode === 'today'
-                ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                    <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
-                    Live
-                  </div>
-                : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
-                    Historical
-                  </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                {mode === 'today'
+                  ? <div style={{ background: 'var(--primary-light)', color: 'var(--primary-dark)', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                      <MdWork size={12} style={{ display: 'inline', marginRight: 4, verticalAlign: 'middle' }} />
+                      Live
+                    </div>
+                  : <div style={{ background: '#7C3AED14', color: '#7C3AED', borderRadius: 999, padding: '3px 10px', fontSize: 12, fontWeight: 700 }}>
+                      Historical
+                    </div>
+                }
+                {!loading && currentlyWorking.count > currentlyWorking.list.length && (
+                  <button
+                    onClick={() => navigate('/attendance')}
+                    className="btn btn-ghost"
+                    style={{
+                      color: 'var(--primary)', height: 28, padding: '0 10px',
+                      fontSize: 12, fontWeight: 700, borderRadius: 999,
+                      border: '1px solid var(--primary)',
+                      background: 'var(--primary-light)',
+                      cursor: 'pointer',
+                      display: 'flex', alignItems: 'center', gap: 4,
+                    }}
+                  >
+                    View All
+                    <span style={{
+                      background: 'var(--primary)', color: '#fff', borderRadius: 999,
+                      padding: '1px 6px', fontSize: 10, fontWeight: 800, lineHeight: '16px',
+                    }}>
+                      +{currentlyWorking.count - currentlyWorking.list.length}
+                    </span>
+                  </button>
+                )}
+              </div>
             }
           >
             {loading ? (
@@ -887,9 +912,21 @@ export default function Overview() {
                     })
                   )}
                   {currentlyWorking.count > currentlyWorking.list.length && (
-                    <p className="text-xs text-center pt-1" style={{ color: 'var(--text-muted)' }}>
-                      +{currentlyWorking.count - currentlyWorking.list.length} more
-                    </p>
+                    <button
+                      onClick={() => navigate('/attendance')}
+                      style={{
+                        width: '100%', marginTop: 8, padding: '8px 0',
+                        background: 'var(--primary-light)', color: 'var(--primary)',
+                        border: '1px dashed var(--primary)', borderRadius: 8,
+                        fontSize: 12, fontWeight: 700, cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                        transition: 'all 0.15s ease',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.background = 'var(--primary)'; e.currentTarget.style.color = '#fff'; }}
+                      onMouseLeave={e => { e.currentTarget.style.background = 'var(--primary-light)'; e.currentTarget.style.color = 'var(--primary)'; }}
+                    >
+                      View all +{currentlyWorking.count - currentlyWorking.list.length} employees →
+                    </button>
                   )}
                 </div>
               </>
