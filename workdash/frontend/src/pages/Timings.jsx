@@ -255,6 +255,7 @@ export default function Timings() {
           data={data?.logs || []}
           loading={loading}
           emptyMessage="No time logs found for this period"
+          groupByKey="log_date"
         />
       </div>
     </div>

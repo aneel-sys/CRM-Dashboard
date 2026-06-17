@@ -1,7 +1,11 @@
 import { useState, useEffect } from 'react';
 import { MdChevronLeft, MdChevronRight } from 'react-icons/md';
 
-export default function DataTable({ columns, data, loading, emptyMessage = 'No data found', pageSize = 25 }) {
+function fmtGroup(d) {
+  return new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+export default function DataTable({ columns, data, loading, emptyMessage = 'No data found', pageSize = 25, groupByKey }) {
   const [page, setPage] = useState(1);
 
   useEffect(() => { setPage(1); }, [data]);
@@ -57,15 +61,40 @@ export default function DataTable({ columns, data, loading, emptyMessage = 'No d
             </tr>
           </thead>
           <tbody>
-            {paged.map((row, i) => (
-              <tr key={row.id ?? i} className="fade-in">
-                {columns.map(c => (
-                  <td key={c.key} style={{ textAlign: c.align || 'left' }}>
-                    {c.render ? c.render(row[c.key], row, (page - 1) * pageSize + i) : (row[c.key] ?? '—')}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {paged.reduce((acc, row, i) => {
+              const rowGrp = groupByKey ? row[groupByKey] : null;
+              const prevGrp = groupByKey
+                ? (i === 0 ? (page > 1 ? data[(page - 1) * pageSize - 1]?.[groupByKey] : null) : paged[i - 1]?.[groupByKey])
+                : null;
+              if (groupByKey && rowGrp !== prevGrp) {
+                acc.push(
+                  <tr key={`grp-${rowGrp}-${i}`}>
+                    <td colSpan={columns.length} style={{
+                      padding: '7px 14px',
+                      background: 'var(--bg)',
+                      fontWeight: 700,
+                      fontSize: 11,
+                      color: 'var(--text-secondary)',
+                      borderTop: acc.length > 0 ? '2px solid var(--border)' : undefined,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                    }}>
+                      {fmtGroup(rowGrp)}
+                    </td>
+                  </tr>
+                );
+              }
+              acc.push(
+                <tr key={row.id ?? i} className="fade-in">
+                  {columns.map(c => (
+                    <td key={c.key} style={{ textAlign: c.align || 'left' }}>
+                      {c.render ? c.render(row[c.key], row, (page - 1) * pageSize + i) : (row[c.key] ?? '—')}
+                    </td>
+                  ))}
+                </tr>
+              );
+              return acc;
+            }, [])}
           </tbody>
         </table>
       </div>
