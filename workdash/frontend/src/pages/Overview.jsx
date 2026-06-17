@@ -1352,30 +1352,48 @@ export default function Overview() {
           ) : performers.length === 0 ? (
             <p className="text-sm" style={{ color: 'var(--text-muted)' }}>No timesheet data yet</p>
           ) : (
-            <div className="space-y-2.5">
-              {performers.map((p, i) => (
-                <div
-                  key={p.id}
-                  onClick={() => navigate(`/person?id=${p.id}`)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', borderRadius: 8, padding: '5px 6px', margin: '-5px -6px' }}
-                  onMouseEnter={e => e.currentTarget.style.background = 'var(--bg)'}
-                  onMouseLeave={e => e.currentTarget.style.background = ''}
-                >
-                  <RankBadge rank={i} />
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {p.name}
-                  </span>
-                  <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                    <p style={{ fontSize: 13, fontWeight: 700, color: 'var(--primary)', margin: 0 }}>
-                      {p.total_hours.toFixed(1)}h
-                    </p>
-                    <p style={{ fontSize: 10, color: p.attendance_pct >= 80 ? '#1D9E75' : p.attendance_pct >= 60 ? '#EF9F27' : '#E24B4A', margin: 0, fontWeight: 600 }}>
-                      {perfDays > 0 ? `${p.days_present}/${perfDays}d · ` : ''}{p.attendance_pct}% att.
-                    </p>
-                  </div>
-                </div>
-              ))}
-            </div>
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th style={{ width: 60, textAlign: 'center' }}>Rank</th>
+                  <th>Employee</th>
+                  <th style={{ textAlign: 'right' }}>Total Hours</th>
+                  <th style={{ textAlign: 'right' }}>Attendance</th>
+                </tr>
+              </thead>
+              <tbody>
+                {performers.map((p, i) => (
+                  <tr key={p.id} onClick={() => navigate(`/person?id=${p.id}`)} style={{ cursor: 'pointer' }}>
+                    <td style={{ verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', justifyContent: 'center' }}>
+                        <RankBadge rank={i} />
+                      </div>
+                    </td>
+                    <td>
+                      <div className="flex items-center gap-2.5">
+                        <div className="avatar-initial" style={{ background: avatarColor(p.name) + '18', color: avatarColor(p.name), width: 30, height: 30, fontSize: 10 }}>
+                          {getInitials(p.name)}
+                        </div>
+                        <p className="font-semibold text-[13px]" style={{ color: 'var(--text)', margin: 0 }}>{p.name}</p>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
+                      <span className="font-bold text-[14px]" style={{ color: 'var(--primary)' }}>{p.total_hours.toFixed(1)}h</span>
+                    </td>
+                    <td style={{ textAlign: 'right', verticalAlign: 'middle' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end' }}>
+                        <span style={{ fontSize: 13, fontWeight: 700, color: p.attendance_pct >= 80 ? '#1D9E75' : p.attendance_pct >= 60 ? '#EF9F27' : '#E24B4A' }}>
+                          {p.attendance_pct}%
+                        </span>
+                        {perfDays > 0 && (
+                          <span style={{ fontSize: 10, color: 'var(--text-muted)', marginTop: 2 }}>{p.days_present} / {perfDays} days</span>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </SectionCard>
 
